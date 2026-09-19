@@ -40,7 +40,7 @@ The local application supports one licence per upload. It intentionally refuses 
 | Backend | Python, FastAPI, Pydantic, pydantic-settings, Uvicorn |
 | File processing | python-multipart, Pillow, pypdf, pypdfium2 |
 | AI | OpenAI Responses API with `gpt-4.1-mini` for vision OCR, extraction, and grounded answers; `text-embedding-3-small` for semantic retrieval |
-| Storage and access | Private filesystem storage for the local demo; optional MinIO/S3-compatible repository and JWT ownership mode |
+| Storage and access | Private filesystem storage for the local demo; optional MinIO/S3-compatible repository, guest document capabilities, and JWT ownership |
 | Quality checks | pytest, Ruff, mypy, ESLint, TypeScript, Prettier, Next.js production build |
 
 ## Architecture
@@ -101,6 +101,8 @@ npm.cmd run dev
 
 Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The development header should show **Backend connected**. Use one fictional individual sample from [`samples/`](samples/) to test the full workflow.
 
+The copied environment files run the original no-login local demo. To show both **Continue as guest** and **Demo sign-in**, complete the bootstrap credential setup in the [guest and JWT guide](docs/PHASE_9_LOCAL_SETUP.md), then set both `LICENCEIQ_AUTH_MODE` and `NEXT_PUBLIC_AUTH_MODE` to `hybrid`.
+
 - API health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 - Development API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
@@ -112,10 +114,20 @@ Only `OPENAI_API_KEY` is required for the complete AI workflow. The local defaul
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Yes for OCR/extraction/Q&A | Server-only key for OpenAI document processing. |
 | `NEXT_PUBLIC_API_BASE_URL` | No | Browser API address; defaults to `http://127.0.0.1:8000`. |
-| `NEXT_PUBLIC_AUTH_MODE` | No | `capability` for the local demo or `jwt` for a signed-in workspace. |
-| `LICENCEIQ_AUTH_MODE` and `LICENCEIQ_DOCUMENT_STORAGE_BACKEND` | No | Backend switches for optional JWT and MinIO modes. |
+| `NEXT_PUBLIC_AUTH_MODE` | No | `capability` for the ready-to-run local demo; `hybrid` for guest plus demo sign-in; `jwt` for a signed-in workspace. It must match the backend mode. |
+| `LICENCEIQ_AUTH_MODE` and `LICENCEIQ_DOCUMENT_STORAGE_BACKEND` | No | Backend switches for guest capability, JWT/hybrid access, and optional MinIO storage. |
 
 All optional limits, model settings, JWT settings, and MinIO settings are documented in [`.env.example`](.env.example). See the [private JWT/MinIO setup guide](docs/PHASE_9_LOCAL_SETUP.md) before enabling those optional modes. Never put secrets in `NEXT_PUBLIC_*` variables.
+
+## Access modes
+
+| Mode | Use case | Credential boundary |
+| --- | --- | --- |
+| `capability` | Default local assessment demo | Upload returns one high-entropy document capability, retained only in browser memory. |
+| `hybrid` | Interview demonstration of both paths | Guests use `X-Document-Capability`; signed-in users use a short-lived JWT. The two credential types cannot access each other’s documents. |
+| `jwt` | Authenticated local/production foundation | A configured bootstrap account receives a short-lived JWT; each document is bound to its token subject. |
+
+`hybrid` is deliberately blocked in production because a public guest service also needs rate limits, malware scanning, monitoring, and other operational controls. The bootstrap account demonstrates ownership; it is not a user-registration system.
 
 ## AI and RAG approach
 
@@ -140,15 +152,16 @@ Document -> parsing/OCR -> page text and evidence blocks
 - **Validate model output locally.** A JSON-shaped model response is not enough: each returned field and answer citation must resolve to stored evidence.
 - **Preserve provenance.** A reviewer correction does not overwrite the source extraction or become evidence for later document Q&A.
 - **Bypass the LLM for known fields.** Direct answers are faster, less expensive, and deterministic when a validated extracted field already answers the question.
+- **Separate guest and signed-in credentials.** A guest capability is scoped to one temporary document; a JWT is scoped to one user subject. Hybrid mode rejects ambiguous requests and never lets an invalid JWT fall back to guest access.
 - **Use a modular monolith.** It is the right level of architecture for a 48-hour assessment and avoids unnecessary infrastructure.
 
 ## Validation
 
 Latest local verification completed successfully:
 
-- 223 offline backend tests passed.
+- 228 offline backend tests passed, including hybrid guest/JWT isolation and invalid-credential checks.
 - Ruff, formatting, strict mypy, and dependency-lock checks passed.
-- ESLint, TypeScript, Prettier, and production frontend builds passed in both capability and JWT modes.
+- ESLint, TypeScript, Prettier, and production frontend builds passed in capability, hybrid, and JWT modes.
 - Live OCR, extraction, review/save, direct Q&A, paraphrased retrieval, and safe abstention were exercised using the supplied fictional samples.
 
 Run the checks yourself:
@@ -176,12 +189,13 @@ Detailed evidence is available in the [phase reports](docs/), without adding the
 - Licence authenticity, portrait/signature identity, QR validation, and legal permission inference are out of scope.
 - Live verification covers the supplied fictional samples; it is not a broad accuracy benchmark.
 - Evidence navigation uses page and excerpt references. It cannot promise pixel-perfect OCR highlighting because the OCR provider supplies no reliable coordinates.
-- The local demo uses temporary private storage. JWT mode is a bootstrap account, and MinIO support has not yet been exercised against a live server.
+- The local demo uses temporary private storage. Guest document capabilities and demo JWTs remain only in browser memory; the JWT mode has one bootstrap account rather than real account management.
+- MinIO support has not yet been exercised against a live server. The hybrid mode is for local demonstration and is intentionally rejected in production.
 - There is no public deployment. Local setup is provided, as allowed by the assessment brief.
 
 ## Production improvements
 
-Before public deployment, add a managed or OIDC identity provider, a persistent database for accounts and metadata, live private object storage, malware scanning, per-user rate limits, encrypted backups, audit logging, monitoring, and cross-worker processing coordination. A queue and isolated parsing workers would be appropriate only after real workload demands them.
+Before public deployment, replace the bootstrap account with an OIDC identity provider such as Keycloak, use Auth.js in Next.js for its secure session layer, and validate provider JWTs through JWKS in FastAPI. Also add a persistent database for accounts and metadata, live private object storage, malware scanning, per-user rate limits, encrypted backups, audit logging, monitoring, and cross-worker processing coordination. A queue and isolated parsing workers would be appropriate only after real workload demands them.
 
 ## AI-assisted development
 

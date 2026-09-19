@@ -19,7 +19,7 @@ from app.models.document import (
 )
 from app.repositories.documents import DocumentRepository, StoredDocumentRecord
 from app.schemas.common import ErrorCode
-from app.services.documents import DocumentService
+from app.services.documents import DocumentCredential, DocumentService
 
 _PRIMARY_FIELDS = (
     "full_name",
@@ -45,7 +45,7 @@ class ReviewService:
         self.document_service = document_service
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
 
-    def get_fields(self, document_id: str, authorization: str | None) -> FieldsResult:
+    def get_fields(self, document_id: str, authorization: DocumentCredential) -> FieldsResult:
         record = self.document_service.authorized_record(document_id, authorization)
         extraction = self._require_extraction(record)
         return self._result(record, extraction)
@@ -53,7 +53,7 @@ class ReviewService:
     def update_fields(
         self,
         document_id: str,
-        authorization: str | None,
+        authorization: DocumentCredential,
         update: ReviewUpdate,
     ) -> FieldsResult:
         self._validate_document_id(document_id)

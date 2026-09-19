@@ -19,7 +19,7 @@ from app.models.document import (
     ReviewUpdate,
 )
 from app.schemas.common import ErrorCode
-from app.services.documents import DocumentService
+from app.services.documents import DocumentCredentials, DocumentService
 from app.services.extraction import ExtractionService
 from app.services.questions import QuestionService
 from app.services.reading import ReadingService
@@ -53,6 +53,14 @@ def _question_service(request: Request) -> QuestionService:
     return cast(QuestionService, request.app.state.question_service)
 
 
+def _credentials(authorization: str | None, document_capability: str | None) -> DocumentCredentials:
+    """Keep identity JWTs and guest document capabilities separate end to end."""
+    return DocumentCredentials(
+        authorization=authorization,
+        capability=document_capability,
+    )
+
+
 def _safe_content_disposition(filename: str) -> str:
     """Use RFC 5987 encoding so filenames cannot inject response headers."""
     from urllib.parse import quote
@@ -68,6 +76,7 @@ async def upload_document(
     request: Request,
     file: Annotated[UploadFile, File()],
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> Response:
     form = await request.form()
     parts = list(form.multi_items())
@@ -77,7 +86,7 @@ async def upload_document(
             "Upload exactly one file using the file field.",
             400,
         )
-    result = await _service(request).upload(file, authorization)
+    result = await _service(request).upload(file, _credentials(authorization, document_capability))
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content=result.model_dump(mode="json"),
@@ -90,8 +99,9 @@ def get_document(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> Response:
-    result = _service(request).get(document_id, authorization)
+    result = _service(request).get(document_id, _credentials(authorization, document_capability))
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
     )
@@ -102,8 +112,13 @@ async def read_document(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
-    result = await run_in_threadpool(_reading_service(request).read, document_id, authorization)
+    result = await run_in_threadpool(
+        _reading_service(request).read,
+        document_id,
+        _credentials(authorization, document_capability),
+    )
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
     )
@@ -114,8 +129,11 @@ def get_document_reading(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
-    result = _reading_service(request).get_saved(document_id, authorization)
+    result = _reading_service(request).get_saved(
+        document_id, _credentials(authorization, document_capability)
+    )
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
     )
@@ -126,9 +144,12 @@ async def extract_document(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
     result = await run_in_threadpool(
-        _extraction_service(request).extract, document_id, authorization
+        _extraction_service(request).extract,
+        document_id,
+        _credentials(authorization, document_capability),
     )
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
@@ -140,8 +161,11 @@ def get_document_extraction(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
-    result = _extraction_service(request).get_saved(document_id, authorization)
+    result = _extraction_service(request).get_saved(
+        document_id, _credentials(authorization, document_capability)
+    )
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
     )
@@ -152,8 +176,11 @@ def get_document_fields(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
-    result = _review_service(request).get_fields(document_id, authorization)
+    result = _review_service(request).get_fields(
+        document_id, _credentials(authorization, document_capability)
+    )
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
     )
@@ -164,6 +191,7 @@ async def update_document_fields(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
     try:
         payload = await request.json()
@@ -173,7 +201,7 @@ async def update_document_fields(
     result = await run_in_threadpool(
         _review_service(request).update_fields,
         document_id,
-        authorization,
+        _credentials(authorization, document_capability),
         update,
     )
     return JSONResponse(
@@ -186,8 +214,11 @@ def get_document_file(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> StreamingResponse:
-    record, content = _service(request).get_file(document_id, authorization)
+    record, content = _service(request).get_file(
+        document_id, _credentials(authorization, document_capability)
+    )
     return StreamingResponse(
         iter([content]),
         media_type=record.mime_type,
@@ -204,6 +235,7 @@ async def ask_document_question(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> JSONResponse:
     try:
         payload = await request.json()
@@ -213,7 +245,7 @@ async def ask_document_question(
     result = await run_in_threadpool(
         _question_service(request).ask,
         document_id,
-        authorization,
+        _credentials(authorization, document_capability),
         question,
     )
     return JSONResponse(
@@ -226,6 +258,7 @@ def delete_document(
     request: Request,
     document_id: str,
     authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
 ) -> Response:
-    _service(request).delete(document_id, authorization)
+    _service(request).delete(document_id, _credentials(authorization, document_capability))
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "no-store"})

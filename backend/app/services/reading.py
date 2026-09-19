@@ -25,7 +25,7 @@ from app.models.document import (
 from app.providers.ocr import OCRProvider
 from app.repositories.documents import DocumentRepository, StoredDocumentRecord
 from app.schemas.common import ErrorCode
-from app.services.documents import DocumentService
+from app.services.documents import DocumentCredential, DocumentService
 
 _PDFIUM_LOCK = threading.Lock()
 _MAX_CONCURRENT_READS = 4
@@ -53,7 +53,7 @@ class ReadingService:
         self._active_documents: set[str] = set()
         self._capacity = threading.BoundedSemaphore(_MAX_CONCURRENT_READS)
 
-    def read(self, document_id: str, authorization: str | None) -> ReadingResult:
+    def read(self, document_id: str, authorization: DocumentCredential) -> ReadingResult:
         """Return cached evidence or perform one bounded, nonduplicated read."""
         initial = self.document_service.authorized_record(document_id, authorization)
         if initial.reading is not None:
@@ -100,7 +100,7 @@ class ReadingService:
             self._capacity.release()
             self._end_read(document_id)
 
-    def get_saved(self, document_id: str, authorization: str | None) -> ReadingResult:
+    def get_saved(self, document_id: str, authorization: DocumentCredential) -> ReadingResult:
         """Retrieve a private cached read without starting provider work."""
         record = self.document_service.authorized_record(document_id, authorization)
         if record.reading is None:

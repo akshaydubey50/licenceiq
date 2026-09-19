@@ -1,0 +1,45 @@
+{
+  "work_unit": "hybrid guest and JWT frontend flow",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 2,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "evidence": {
+      "uncertainty": "The backend credential contract was explicit, with one configuration-alignment issue found during integration.",
+      "scope": "The work spans mode validation, the access-choice interface, browser-only session state, upload credentials, preview, review, question, and delete calls.",
+      "reasoning": "The client must keep credentials in memory, distinguish Authorization from X-Document-Capability, and safely clear a JWT session on a 401 response.",
+      "verification": "All three modes require linting, formatting, type checking, and production builds; the security contract also has focused backend coverage."
+    },
+    "score": 7,
+    "risk": "high",
+    "recommended_tier": "strong"
+  },
+  "dispatch": {
+    "model": "gpt-5.6-sol",
+    "effort": "high",
+    "tier": "strong",
+    "attempt": 1,
+    "escalations": 0,
+    "owned_files": [
+      "frontend/src/components/auth-gate.tsx",
+      "frontend/src/components/document-workspace.tsx",
+      "frontend/src/lib/env.ts",
+      "frontend/src/types/auth.ts",
+      "frontend/.env.example"
+    ]
+  },
+  "outcome": {
+    "status": "implemented and integrated",
+    "checks": [
+      "ESLint passed",
+      "Prettier passed",
+      "Next.js type generation and TypeScript passed",
+      "Production webpack builds passed in capability, hybrid, and jwt modes"
+    ],
+    "integration_note": "The frontend example defaults to capability so it matches the credential-free root example; hybrid is enabled only after both frontend and backend settings are configured.",
+    "remaining": "No guest-to-user document claim flow; guest data expires under the configured retention policy."
+  }
+}

@@ -22,8 +22,10 @@ function apiBaseUrl(): string {
 
 function authMode(): AuthMode {
   const value = process.env.NEXT_PUBLIC_AUTH_MODE ?? "capability";
-  if (value !== "capability" && value !== "jwt") {
-    throw new Error("NEXT_PUBLIC_AUTH_MODE must be either capability or jwt.");
+  if (value !== "capability" && value !== "jwt" && value !== "hybrid") {
+    throw new Error(
+      "NEXT_PUBLIC_AUTH_MODE must be capability, jwt, or hybrid.",
+    );
   }
   return value;
 }

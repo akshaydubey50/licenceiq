@@ -1,4 +1,4 @@
-# Phase 9 local MinIO and JWT setup
+# Phase 9 local guest, MinIO, and JWT setup
 
 This guide prepares a private local instance. It does not publish LicenceIQ or make its document bucket public.
 
@@ -45,6 +45,26 @@ LICENCEIQ_BOOTSTRAP_SUBJECT=candidate-001
 
 The application has one configured bootstrap account for this assessment. It has no self-registration or refresh-token service.
 
+## Run guest and signed-in flows together
+
+For a local interview demonstration, set the backend `.env` and frontend `.env.local` to the matching hybrid values:
+
+```dotenv
+# Root .env
+LICENCEIQ_AUTH_MODE=hybrid
+
+# frontend/.env.local
+NEXT_PUBLIC_AUTH_MODE=hybrid
+```
+
+Hybrid mode keeps the two security boundaries separate:
+
+- A guest upload has no credentials. Its upload response contains a one-time document capability, and every later operation sends that value in `X-Document-Capability`.
+- A signed-in upload sends its JWT in `Authorization: Bearer ...`. The resulting document belongs to the JWT subject and never returns a document capability.
+- JWTs cannot open guest documents, and guest capabilities cannot open signed-in documents. Missing or mismatched credentials look like an unknown document. Invalid JWTs return `401`, and requests containing both credential types return `400`.
+
+The guest capability is returned only once and must be kept in browser memory. It does not appear in document metadata, storage keys, URLs, or logs.
+
 ## Prepare MinIO
 
 Run MinIO on infrastructure you control, with a persistent local volume and non-public API/bucket. The application creates its configured bucket when its service credential has bucket-create permission. Give the application credential access only to its dedicated private bucket; do not reuse MinIO root credentials in LicenceIQ.
@@ -67,7 +87,7 @@ Use `LICENCEIQ_MINIO_SECURE=true` with a TLS-protected endpoint for any non-loca
 
 ## Start and verify
 
-Set the frontend mode in `frontend/.env.local`:
+Set the frontend mode in `frontend/.env.local`. It must match the backend mode. Use `jwt` below for the signed-in-only flow, or replace both settings with `hybrid` for the two-choice demo above:
 
 ```dotenv
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
@@ -76,4 +96,4 @@ NEXT_PUBLIC_AUTH_MODE=jwt
 
 Then start the backend and frontend with the normal commands in the README. Sign in with the bootstrap account before uploading a document. A JWT belongs to one subject, and document operations for a different subject return the same missing-document response as an unknown ID.
 
-For a production setting, LicenceIQ rejects capability authentication, filesystem storage, non-HTTPS CORS origins, incomplete JWT settings, or incomplete MinIO credentials before the server starts. Run one backend worker: MinIO persistence does not yet provide cross-process compare-and-swap protection for concurrent lifecycle updates.
+For a production setting, LicenceIQ still requires JWT-only authentication and rejects both capability and hybrid modes. A public guest service needs rate limits, abuse controls, malware scanning, and operational monitoring that are outside this assessment. Production also rejects filesystem storage, non-HTTPS CORS origins, incomplete JWT settings, or incomplete MinIO credentials before the server starts. Run one backend worker: MinIO persistence does not yet provide cross-process compare-and-swap protection for concurrent lifecycle updates.

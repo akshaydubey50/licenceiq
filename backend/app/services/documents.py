@@ -6,9 +6,11 @@ import logging
 import secrets
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import PurePath
+from typing import TypeAlias
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -37,6 +39,17 @@ _IMAGE_FORMATS = {"image/png": "PNG", "image/jpeg": "JPEG"}
 logging.getLogger("pypdf").setLevel(logging.CRITICAL)
 
 
+@dataclass(frozen=True, slots=True)
+class DocumentCredentials:
+    """Keep user JWTs and guest document capabilities as distinct credentials."""
+
+    authorization: str | None = None
+    capability: str | None = None
+
+
+DocumentCredential: TypeAlias = DocumentCredentials | str | None
+
+
 class DocumentService:
     """Apply the Phase 1 contract without exposing persistence details to routes."""
 
@@ -56,9 +69,12 @@ class DocumentService:
         return self.repository.cleanup_expired(self.now_provider())
 
     async def upload(
-        self, upload: UploadFile, authorization: str | None = None
+        self, upload: UploadFile, credentials: DocumentCredential = None
     ) -> DocumentUploadResponse:
-        owner_subject = self._authenticated_subject(authorization)
+        resolved = self._normalize_credentials(credentials)
+        if self.settings.auth_mode == "hybrid" and resolved.capability is not None:
+            raise self.invalid_credentials()
+        owner_subject = self._authenticated_subject(resolved)
         await run_in_threadpool(self.cleanup_expired)
         filename = self._safe_filename(upload.filename)
         mime_type = self._validate_declared_type(filename, upload.content_type)
@@ -79,8 +95,11 @@ class DocumentService:
 
         created_at = self.now_provider()
         document_id = str(uuid4())
+        is_guest_upload = self.settings.auth_mode == "hybrid" and owner_subject is None
         access_token = (
-            secrets.token_urlsafe(32) if self.settings.auth_mode == "capability" else None
+            secrets.token_urlsafe(32)
+            if self.settings.auth_mode == "capability" or is_guest_upload
+            else None
         )
         record = StoredDocumentRecord(
             document_id=document_id,
@@ -99,20 +118,20 @@ class DocumentService:
             **self._public_document(record).model_dump(), access_token=access_token
         )
 
-    def get(self, document_id: str, authorization: str | None) -> Document:
-        record = self.authorized_record(document_id, authorization)
+    def get(self, document_id: str, credentials: DocumentCredential) -> Document:
+        record = self.authorized_record(document_id, credentials)
         return self._public_document(record)
 
     def authorized_record(
-        self, document_id: str, authorization: str | None
+        self, document_id: str, credentials: DocumentCredential
     ) -> StoredDocumentRecord:
         """Resolve a live private record through the indistinguishable capability check."""
-        return self._authorized_record(document_id, authorization)
+        return self._authorized_record(document_id, credentials)
 
     def get_file(
-        self, document_id: str, authorization: str | None
+        self, document_id: str, credentials: DocumentCredential
     ) -> tuple[StoredDocumentRecord, bytes]:
-        record = self._authorized_record(document_id, authorization)
+        record = self._authorized_record(document_id, credentials)
         try:
             return record, self.repository.read_content(record)
         except (OSError, ObjectStoreError) as exc:
@@ -120,8 +139,8 @@ class DocumentService:
                 ErrorCode.INTERNAL_ERROR, "The document could not be read. Please try again.", 500
             ) from exc
 
-    def delete(self, document_id: str, authorization: str | None) -> None:
-        record = self._authorized_record(document_id, authorization)
+    def delete(self, document_id: str, credentials: DocumentCredential) -> None:
+        record = self._authorized_record(document_id, credentials)
         try:
             self.repository.delete(record)
         except (OSError, ObjectStoreError) as exc:
@@ -132,18 +151,51 @@ class DocumentService:
             ) from exc
 
     def _authorized_record(
-        self, document_id: str, authorization: str | None
+        self, document_id: str, credentials: DocumentCredential
     ) -> StoredDocumentRecord:
+        resolved = self._normalize_credentials(credentials)
+        if (
+            self.settings.auth_mode == "hybrid"
+            and resolved.authorization is not None
+            and resolved.capability is not None
+        ):
+            raise self.invalid_credentials()
+        hybrid_subject = (
+            self._authenticated_subject(resolved)
+            if self.settings.auth_mode == "hybrid" and resolved.authorization is not None
+            else None
+        )
         self.cleanup_expired()
         record = self.repository.get(document_id)
         if record is None or record.expires_at <= self.now_provider():
             raise self.not_found()
         if self.settings.auth_mode == "jwt":
-            if record.owner_subject != self._authenticated_subject(authorization):
+            if record.owner_subject != self._authenticated_subject(resolved):
                 raise self.not_found()
             return record
 
-        supplied_token = self._bearer_token(authorization)
+        if self.settings.auth_mode == "hybrid":
+            if resolved.authorization is not None:
+                if (
+                    record.owner_subject is None
+                    or record.access_token_hash is not None
+                    or record.owner_subject != hybrid_subject
+                ):
+                    raise self.not_found()
+                return record
+            if resolved.capability is None:
+                raise self.not_found()
+            if (
+                record.owner_subject is not None
+                or record.access_token_hash is None
+                or not hmac.compare_digest(
+                    self._hash_token(resolved.capability), record.access_token_hash
+                )
+            ):
+                raise self.not_found()
+            return record
+
+        supplied_token = self._bearer_token(resolved.authorization)
         if (
             supplied_token is None
             or record.access_token_hash is None
@@ -152,9 +204,11 @@ class DocumentService:
             raise self.not_found()
         return record
 
-    def _authenticated_subject(self, authorization: str | None) -> str | None:
-        """Resolve the current JWT identity only in the explicitly configured JWT mode."""
+    def _authenticated_subject(self, credentials: DocumentCredentials) -> str | None:
+        """Resolve a JWT subject while allowing credential-free hybrid guest uploads."""
         if self.settings.auth_mode == "capability":
+            return None
+        if self.settings.auth_mode == "hybrid" and credentials.authorization is None:
             return None
         if self.auth_service is None:
             raise ApplicationError(
@@ -163,13 +217,28 @@ class DocumentService:
                 500,
             )
         try:
-            return self.auth_service.authenticate_authorization(authorization).subject
+            return self.auth_service.authenticate_authorization(credentials.authorization).subject
         except AuthenticationError:
             raise ApplicationError(
                 ErrorCode.AUTHENTICATION_REQUIRED,
                 "Authentication is required.",
                 401,
             ) from None
+
+    @staticmethod
+    def _normalize_credentials(credentials: DocumentCredential) -> DocumentCredentials:
+        """Preserve existing direct service calls that pass an Authorization string."""
+        if isinstance(credentials, DocumentCredentials):
+            return credentials
+        return DocumentCredentials(authorization=credentials)
+
+    @staticmethod
+    def invalid_credentials() -> ApplicationError:
+        return ApplicationError(
+            ErrorCode.INVALID_REQUEST,
+            "Use either authentication or a document capability, not both.",
+            400,
+        )
 
     async def _read_bounded(self, upload: UploadFile) -> bytes:
         content = bytearray()

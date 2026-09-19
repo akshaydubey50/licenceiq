@@ -416,6 +416,6 @@ class Document(DomainModel):
 
 
 class DocumentUploadResponse(Document):
-    """Upload result with a local capability only when capability mode is active."""
+    """Upload result with a capability only for capability or hybrid guest uploads."""
 
     access_token: str | None = None

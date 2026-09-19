@@ -34,7 +34,7 @@ from app.providers.answer import (
 from app.providers.embeddings import EmbeddingProvider, EmbeddingRequest, EmbeddingResult
 from app.repositories.documents import DocumentRepository, StoredDocumentRecord
 from app.schemas.common import ErrorCode
-from app.services.documents import DocumentService
+from app.services.documents import DocumentCredential, DocumentService
 
 _WORD_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
 _STOP_WORDS = {
@@ -98,7 +98,7 @@ class QuestionService:
     def ask(
         self,
         document_id: str,
-        authorization: str | None,
+        authorization: DocumentCredential,
         request: QuestionRequest,
     ) -> QuestionResult:
         """Answer one question without saving the request, result, or provider context."""
@@ -511,7 +511,7 @@ class QuestionService:
     def _ensure_current(
         self,
         snapshot: StoredDocumentRecord,
-        authorization: str | None,
+        authorization: DocumentCredential,
     ) -> None:
         current = self.document_service.authorized_record(snapshot.document_id, authorization)
         if (

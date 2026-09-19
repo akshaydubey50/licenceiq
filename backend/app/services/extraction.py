@@ -28,7 +28,7 @@ from app.providers.extraction import (
 )
 from app.repositories.documents import DocumentRepository, StoredDocumentRecord
 from app.schemas.common import ErrorCode
-from app.services.documents import DocumentService
+from app.services.documents import DocumentCredential, DocumentService
 
 _MAX_CONCURRENT_EXTRACTIONS = 4
 _PRIMARY_FIELD_NAMES = {
@@ -79,7 +79,7 @@ class ExtractionService:
         self._active_documents: set[str] = set()
         self._capacity = threading.BoundedSemaphore(_MAX_CONCURRENT_EXTRACTIONS)
 
-    def extract(self, document_id: str, authorization: str | None) -> ExtractionResult:
+    def extract(self, document_id: str, authorization: DocumentCredential) -> ExtractionResult:
         """Return a cached result or perform one bounded extraction for this document."""
         initial = self.document_service.authorized_record(document_id, authorization)
         self._require_reading(initial)
@@ -139,7 +139,7 @@ class ExtractionService:
             self._capacity.release()
             self._end_extraction(document_id)
 
-    def get_saved(self, document_id: str, authorization: str | None) -> ExtractionResult:
+    def get_saved(self, document_id: str, authorization: DocumentCredential) -> ExtractionResult:
         """Retrieve the cached result without starting provider work."""
         record = self.document_service.authorized_record(document_id, authorization)
         self._require_reading(record)

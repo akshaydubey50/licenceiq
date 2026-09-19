@@ -10,6 +10,7 @@ import {
 import { ApiError, request } from "@/lib/api-client";
 import { Icon } from "@/components/icon";
 import { publicEnv } from "@/lib/env";
+import type { WorkspaceAccessMode } from "@/types/auth";
 import type {
   Document,
   DocumentPage,
@@ -48,12 +49,16 @@ type UploadResponse = {
   document: Document;
   capabilityToken?: string;
 };
+type DocumentCredential = {
+  kind: "authorization" | "document-capability";
+  value: string;
+};
 type StoredDocument = {
   document: Document;
-  accessToken: string;
+  credential: DocumentCredential;
   previewUrl: string;
 };
-type PendingCleanup = Pick<StoredDocument, "document" | "accessToken">;
+type PendingCleanup = Pick<StoredDocument, "document" | "credential">;
 type WorkspaceOperation = "upload" | "read" | "save" | "remove" | "cleanup";
 type SelectedSource = {
   pageNumber: number;
@@ -565,6 +570,7 @@ function validateFile(file: File): string | null {
 async function uploadDocument(
   file: File,
   sessionAccessToken: string | null,
+  accessMode: WorkspaceAccessMode,
   signal: AbortSignal,
 ): Promise<UploadResponse> {
   const formData = new FormData();
@@ -584,7 +590,7 @@ async function uploadDocument(
           "INVALID_RESPONSE",
         );
       }
-      if (publicEnv.authMode === "capability") {
+      if (accessMode !== "jwt") {
         if (
           typeof value.access_token !== "string" ||
           value.access_token.length === 0
@@ -604,18 +610,21 @@ async function uploadDocument(
   });
 }
 
+function credentialHeaders(credential: DocumentCredential): HeadersInit {
+  return credential.kind === "authorization"
+    ? { Authorization: `Bearer ${credential.value}` }
+    : { "X-Document-Capability": credential.value };
+}
+
 async function fetchPreview(
   document: Document,
-  accessToken: string,
+  credential: DocumentCredential,
   signal: AbortSignal,
 ): Promise<string> {
   return request(
     `/api/documents/${encodeURIComponent(document.document_id)}/file`,
     {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: document.mime_type,
-      },
+      headers: { ...credentialHeaders(credential), Accept: document.mime_type },
       signal,
       decode: async (response) => {
         const contentType = response.headers
@@ -642,12 +651,12 @@ async function fetchPreview(
 
 async function deleteDocument(
   documentId: string,
-  accessToken: string,
+  credential: DocumentCredential,
   signal: AbortSignal,
 ): Promise<void> {
   await request(`/api/documents/${encodeURIComponent(documentId)}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: credentialHeaders(credential),
     signal,
     decode: async (response) => {
       if (response.status !== 204) {
@@ -662,14 +671,14 @@ async function deleteDocument(
 
 async function readDocument(
   document: Document,
-  accessToken: string,
+  credential: DocumentCredential,
   signal: AbortSignal,
 ): Promise<DocumentReading> {
   return request(
     `/api/documents/${encodeURIComponent(document.document_id)}/read`,
     {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: credentialHeaders(credential),
       signal,
       timeoutMs: 135_000,
       decode: async (response) =>
@@ -680,12 +689,12 @@ async function readDocument(
 
 async function extractDocument(
   documentId: string,
-  accessToken: string,
+  credential: DocumentCredential,
   signal: AbortSignal,
 ): Promise<ExtractionResult> {
   return request(`/api/documents/${encodeURIComponent(documentId)}/extract`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: credentialHeaders(credential),
     signal,
     timeoutMs: 135_000,
     decode: async (response) =>
@@ -695,11 +704,11 @@ async function extractDocument(
 
 async function getFields(
   documentId: string,
-  accessToken: string,
+  credential: DocumentCredential,
   signal: AbortSignal,
 ): Promise<FieldsResult> {
   return request(`/api/documents/${encodeURIComponent(documentId)}/fields`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: credentialHeaders(credential),
     signal,
     decode: async (response) =>
       decodeFields(await response.json().catch(() => null), documentId),
@@ -708,14 +717,14 @@ async function getFields(
 
 async function putFields(
   documentId: string,
-  accessToken: string,
+  credential: DocumentCredential,
   fields: ReviewUpdateFields,
   signal: AbortSignal,
 ): Promise<FieldsResult> {
   return request(`/api/documents/${encodeURIComponent(documentId)}/fields`, {
     method: "PUT",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      ...credentialHeaders(credential),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ fields }),
@@ -727,7 +736,7 @@ async function putFields(
 
 async function askDocumentQuestion(
   documentId: string,
-  accessToken: string,
+  credential: DocumentCredential,
   question: string,
   reading: DocumentReading,
   signal: AbortSignal,
@@ -735,7 +744,7 @@ async function askDocumentQuestion(
   return request(`/api/documents/${encodeURIComponent(documentId)}/questions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      ...credentialHeaders(credential),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ question }),
@@ -752,12 +761,14 @@ async function askDocumentQuestion(
 }
 
 type DocumentWorkspaceProps = {
+  accessMode?: WorkspaceAccessMode;
   sessionAccessToken?: string;
   onUnauthorized?: () => void;
 };
 
 /** Owns browser-only authorization and revokes all preview URLs on exit. */
 export function DocumentWorkspace({
+  accessMode = publicEnv.authMode === "jwt" ? "jwt" : "capability",
   sessionAccessToken,
   onUnauthorized,
 }: DocumentWorkspaceProps = {}) {
@@ -819,7 +830,7 @@ export function DocumentWorkspace({
   };
   const handleUnauthorized = (failure: unknown): boolean => {
     if (
-      publicEnv.authMode === "jwt" &&
+      accessMode === "jwt" &&
       failure instanceof ApiError &&
       failure.status === 401
     ) {
@@ -905,7 +916,7 @@ export function DocumentWorkspace({
     try {
       await deleteDocument(
         cleanup.document.document_id,
-        cleanup.accessToken,
+        cleanup.credential,
         controller.signal,
       );
       updateWhenMounted(() => {
@@ -962,38 +973,44 @@ export function DocumentWorkspace({
     let previewUrl: string | null = null;
     let uploadedDocument: Pick<
       StoredDocument,
-      "document" | "accessToken"
+      "document" | "credential"
     > | null = null;
     try {
       const response = await uploadDocument(
         selectedFile,
         sessionAccessToken ?? null,
+        accessMode,
         controller.signal,
       );
-      const accessToken =
-        publicEnv.authMode === "jwt"
-          ? sessionAccessToken
-          : response.capabilityToken;
-      if (!accessToken) {
+      const credentialValue =
+        accessMode === "jwt" ? sessionAccessToken : response.capabilityToken;
+      if (!credentialValue) {
         throw new ApiError(
           "Authentication is required to use this workspace.",
           "AUTH_REQUIRED",
           401,
         );
       }
+      const credential: DocumentCredential = {
+        kind:
+          accessMode === "hybrid-guest"
+            ? "document-capability"
+            : "authorization",
+        value: credentialValue,
+      };
       uploadedDocument = {
         document: response.document,
-        accessToken,
+        credential,
       };
       previewUrl = await fetchPreview(
         response.document,
-        accessToken,
+        credential,
         controller.signal,
       );
       previewUrlsRef.current.add(previewUrl);
       const nextDocument: StoredDocument = {
         document: response.document,
-        accessToken,
+        credential,
         previewUrl,
       };
       const previousDocument = activeDocument;
@@ -1015,7 +1032,7 @@ export function DocumentWorkspace({
         await attemptCleanup(
           {
             document: previousDocument.document,
-            accessToken: previousDocument.accessToken,
+            credential: previousDocument.credential,
           },
           nextDocument,
         );
@@ -1054,7 +1071,7 @@ export function DocumentWorkspace({
     try {
       await deleteDocument(
         activeDocument.document.document_id,
-        activeDocument.accessToken,
+        activeDocument.credential,
         controller.signal,
       );
       previewUrlsRef.current.delete(activeDocument.previewUrl);
@@ -1117,7 +1134,7 @@ export function DocumentWorkspace({
     try {
       const result = await readDocument(
         activeDocument.document,
-        activeDocument.accessToken,
+        activeDocument.credential,
         controller.signal,
       );
       updateWhenMounted(() => {
@@ -1127,12 +1144,12 @@ export function DocumentWorkspace({
       });
       await extractDocument(
         documentId,
-        activeDocument.accessToken,
+        activeDocument.credential,
         controller.signal,
       );
       const reviewed = await getFields(
         documentId,
-        activeDocument.accessToken,
+        activeDocument.credential,
         controller.signal,
       );
       updateWhenMounted(() => {
@@ -1195,7 +1212,7 @@ export function DocumentWorkspace({
     try {
       const saved = await putFields(
         documentId,
-        activeDocument.accessToken,
+        activeDocument.credential,
         nextFields,
         controller.signal,
       );
@@ -1254,7 +1271,7 @@ export function DocumentWorkspace({
     try {
       const result = await askDocumentQuestion(
         documentId,
-        activeDocument.accessToken,
+        activeDocument.credential,
         normalizedQuestion,
         reading,
         controller.signal,

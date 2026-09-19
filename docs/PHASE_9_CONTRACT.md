@@ -21,8 +21,9 @@ Phase 9 provides the backend contracts, storage abstraction, authentication endp
 
 - `development` retains an explicit local capability mode for the existing assessment demo.
 - `jwt` mode requires a signed short-lived access token on document operations and binds new documents to its `sub` claim.
+- `hybrid` mode is a local/demo option that accepts credential-free guest uploads and signed-in uploads on one server. Guest document operations use only `X-Document-Capability`; signed-in documents use only JWT ownership.
 - JWT mode obtains a token only through a server-side configured bootstrap account. Self-registration and refresh tokens are outside this assessment scope.
-- Production settings must reject capability mode, placeholder JWT keys, wildcard CORS origins, and missing configured storage settings.
+- Production settings must reject capability and hybrid modes, placeholder JWT keys, wildcard CORS origins, and missing configured storage settings until public guest abuse controls are available.
 - Authentication failures return a generic unauthorised response. Document ownership failures continue to look like a missing document so document IDs cannot be enumerated.
 
 ## Storage contract

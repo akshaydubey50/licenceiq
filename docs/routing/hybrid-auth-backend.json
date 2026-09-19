@@ -1,0 +1,37 @@
+{
+  "work_unit": "hybrid guest and JWT backend authorization",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 2,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "evidence": {
+      "uncertainty": "The credential contract is explicit; production guest policy required one documented decision.",
+      "scope": "The change crosses configuration, HTTP headers, service authorization, CORS, tests, and setup documentation.",
+      "reasoning": "Guest and user credentials require strict non-fallback and ownership invariants.",
+      "verification": "Allowed, denied, malformed, ambiguous, cross-owner, and regression paths require focused and full checks."
+    },
+    "score": 7,
+    "risk": "high",
+    "recommended_tier": "strong"
+  },
+  "dispatch": {
+    "model": "inherited agent runtime",
+    "effort": "not exposed to worker",
+    "tier": "unverified; strong was recommended",
+    "attempt": 2,
+    "escalations": 0
+  },
+  "outcome": {
+    "status": "implemented and locally verified",
+    "checks": [
+      "228 backend tests passed",
+      "Ruff lint passed",
+      "Ruff format check passed for 49 files",
+      "mypy passed for 35 source files"
+    ],
+    "remaining": "Coordinator integration and frontend end-to-end verification"
+  }
+}

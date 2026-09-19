@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     app_name: str = "LicenceIQ API"
     environment: Literal["development", "test", "production"] = "development"
-    auth_mode: Literal["capability", "jwt"] = "capability"
+    auth_mode: Literal["capability", "jwt", "hybrid"] = "capability"
     jwt_signing_key: SecretStr = Field(default=SecretStr(""))
     jwt_issuer: str = "licenceiq-api"
     jwt_audience: str = "licenceiq-browser"
@@ -119,7 +119,7 @@ class Settings(BaseSettings):
             ):
                 raise ValueError("MinIO access and secret keys are required for MinIO storage.")
 
-        if self.auth_mode == "jwt":
+        if self.auth_mode in {"jwt", "hybrid"}:
             signing_key = self.jwt_signing_key.get_secret_value()
             if len(signing_key.encode("utf-8")) < 32:
                 raise ValueError("JWT signing key must contain at least 32 bytes.")
@@ -135,9 +135,13 @@ class Settings(BaseSettings):
                 )
                 or not self.bootstrap_password_hash.get_secret_value()
             ):
-                raise ValueError("JWT mode requires complete bootstrap account and token settings.")
+                raise ValueError(
+                    "JWT and hybrid modes require complete bootstrap account and token settings."
+                )
 
         if self.environment == "production":
+            # Public guest access needs additional abuse controls and operational safeguards
+            # that are outside this assessment, so production remains authenticated-only.
             if self.auth_mode != "jwt":
                 raise ValueError("Production requires JWT authentication.")
             if self.document_storage_backend != "minio":
