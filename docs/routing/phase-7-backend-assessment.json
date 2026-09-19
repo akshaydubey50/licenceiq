@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "Embedding cache persistence, semantic ranking, provider error handling, and the existing deletion/expiry race guarantees must fit the current filesystem record lifecycle.",
+    "scope": "This changes provider contracts, settings, stored document models/repository serialization, question retrieval, app factory injection, tests, and configuration without changing the public question response.",
+    "reasoning": "The implementation must validate untrusted vectors, avoid provider work for direct questions, cache per-document indexes safely, combine retrieval signals deterministically, and preserve source-only citation validation.",
+    "verification": "New fake-provider and SDK-transport coverage is needed in addition to the full backend suite, strict typing, formatting, lock validation, and a separately labelled fictional-sample live exercise."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

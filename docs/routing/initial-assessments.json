@@ -1,0 +1,63 @@
+{
+  "assessed_on": "2026-09-19",
+  "capabilities_source": "Current collaboration.spawn_agent tool metadata; refresh for future sessions.",
+  "cases": [
+    {
+      "id": "development-workflow-setup",
+      "status": "coordinator_direct",
+      "scope": "Project instructions, routing documentation, and helper recommendation verification only.",
+      "risk_reason": "Reversible documentation changes do not affect application behavior or access controls.",
+      "task": {
+        "scores": {"uncertainty": 0, "scope": 1, "reasoning": 0, "verification": 1},
+        "evidence": {
+          "uncertainty": "The installed skill provides the rubric, map, schema, and helper; current tools expose supported model/effort pairs.",
+          "scope": "Root instructions and the README/build plan must consistently point to the routing guide.",
+          "reasoning": "Translate existing skill rules into project instructions without changing application code.",
+          "verification": "Validate structured assessments, helper outputs, selected capabilities, and local document links."
+        },
+        "risk": "low",
+        "attempts_used": 0,
+        "escalate": false,
+        "escalations_used": 0
+      }
+    },
+    {
+      "id": "frontend-upload-provisional",
+      "status": "planned_not_dispatched",
+      "scope": "Future upload widget, request client, and preview after a shared API contract is agreed.",
+      "risk_reason": "Bounded browser behavior; private file storage and server access enforcement are separately owned strong-risk work.",
+      "task": {
+        "scores": {"uncertainty": 1, "scope": 1, "reasoning": 1, "verification": 1},
+        "evidence": {
+          "uncertainty": "Phase 0 has only a health API client and a disabled upload affordance; the upload API contract is still to be agreed.",
+          "scope": "The upload widget, API client, and preview state are connected frontend components.",
+          "reasoning": "Pending/error states, cancellation, and preview resource cleanup interact.",
+          "verification": "New browser checks are needed for selection, upload success, rejection, and retry."
+        },
+        "risk": "medium",
+        "attempts_used": 0,
+        "escalate": false,
+        "escalations_used": 0
+      }
+    },
+    {
+      "id": "backend-upload-provisional",
+      "status": "planned_not_dispatched",
+      "scope": "Future upload validation, generated file identifiers, private storage, and controlled retrieval.",
+      "risk_reason": "Accepting untrusted files and retrieving private licence documents crosses security and sensitive-data boundaries.",
+      "task": {
+        "scores": {"uncertainty": 1, "scope": 1, "reasoning": 1, "verification": 1},
+        "evidence": {
+          "uncertainty": "Only the health route exists; decoding and storage implementation details remain to be selected.",
+          "scope": "A thin API route, validation/service logic, and storage boundary must agree.",
+          "reasoning": "File size, actual content type, generated storage paths, and cleanup conditions interact.",
+          "verification": "Focused malformed-file, oversized-file, path-safety, and retrieval-isolation checks must be added."
+        },
+        "risk": "high",
+        "attempts_used": 0,
+        "escalate": false,
+        "escalations_used": 0
+      }
+    }
+  ]
+}

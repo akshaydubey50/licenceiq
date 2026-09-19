@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 1,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The current preview uses a native PDF iframe and OCR generally has no geometry, so source navigation must degrade honestly while preserving accessible evidence review.",
+    "scope": "The document workspace, field source references, chat citations, responsive styles, and browser acceptance coverage change together; no backend contract changes.",
+    "reasoning": "A selected source must remain tied to validated immutable evidence and be reset across replacement/removal lifecycle transitions.",
+    "verification": "Existing browser checks cover upload/read/question flow but need new focused-source assertions across image and PDF preview behavior."
+  },
+  "risk": "medium",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

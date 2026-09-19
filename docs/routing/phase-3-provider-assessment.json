@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 1, "scope": 1, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The existing OpenAI setup works, while structured-candidate prompt behavior needs offline validation.",
+    "scope": "Provider protocol, settings, prompt and safe SDK response handling are connected.",
+    "reasoning": "The response must never become a trusted citation or follow document instructions.",
+    "verification": "A real-SDK mock transport must cover strict schema, refusals, malformed outputs, bounds and timeouts."
+  },
+  "risk": "high", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

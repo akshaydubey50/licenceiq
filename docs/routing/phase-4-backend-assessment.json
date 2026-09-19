@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The Phase 3 persistence and capability seams exist, while durable reviewed data has a new immutable-source boundary.",
+    "scope": "Domain models, sidecar storage, lifecycle service, routes, errors and focused tests change together.",
+    "reasoning": "The implementation must preserve original evidence, validate reviewer input and prevent late saves after deletion or expiry.",
+    "verification": "Offline persistence, validation, capability, and race coverage are required."
+  },
+  "risk": "high", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

@@ -1,0 +1,43 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# JavaScript
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Local files, caches, and runtime logs
+.cache/
+.uv-cache/
+.runtime/
+.data/
+storage/
+uploads/
+*.log
+dist/
+build/
+.DS_Store
+Thumbs.db
+
+# Personal drafts and generated design artifacts are kept locally.
+skill-drafts/
+mockups/
+
+# Accidental flattened copies of files created by an earlier local tool run.
+UsersakshaDocumentsChatGPTdp-world-docsoutinglicenceiq-creative-six.md
+UsersakshaDocumentsChatGPTdp-world-mockupslicenceiq-creative-sixCREATIVE_DECISIONS.md

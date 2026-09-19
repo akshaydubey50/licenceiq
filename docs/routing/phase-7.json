@@ -1,0 +1,75 @@
+{
+  "phase": 7,
+  "title": "Semantic retrieval with temporary embeddings",
+  "status": "complete",
+  "completed_on": "2026-09-19",
+  "contract": "docs/PHASE_7_CONTRACT.md",
+  "capabilities": "docs/routing/phase-7-capabilities.json",
+  "work_units": [
+    {
+      "name": "Embeddings contract, private cache, provider adapter, hybrid retrieval, and offline tests",
+      "assessment": "docs/routing/phase-7-backend-assessment.json",
+      "recommendation": {
+        "score": 8,
+        "risk": "high",
+        "tier": "strong",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "actual_dispatch": {
+        "agent": "/root/phase7_backend",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "backend/app/core/config.py",
+          "backend/app/models/document.py",
+          "backend/app/repositories/documents.py",
+          "backend/app/providers/embeddings.py",
+          "backend/app/providers/openai_embeddings.py",
+          "backend/app/services/questions.py",
+          "backend/app/main.py",
+          "backend/tests/test_questions.py",
+          "backend/tests/test_openai_embeddings.py",
+          ".env.example"
+        ]
+      },
+      "outcome": "accepted after coordinator code review, offline validation, and a fictional-sample live exercise"
+    },
+    {
+      "name": "Live-timeout diagnosis and bounded default-budget correction",
+      "assessment": "direct coordinator integration work after the live acceptance exposed a 504 timeout",
+      "actual_dispatch": {
+        "agent": "coordinator",
+        "model": "coordinator model unchanged",
+        "effort": "n/a",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "backend/app/core/config.py",
+          "backend/tests/test_openai_answer.py",
+          ".env.example",
+          "README.md"
+        ]
+      },
+      "outcome": "default total question budget increased from 30 to 60 seconds; focused and live checks passed"
+    }
+  ],
+  "verification": {
+    "backend_tests": "185 passed",
+    "focused_backend_tests_after_timeout_correction": "62 passed",
+    "ruff_check": "passed",
+    "ruff_format": "41 files already formatted",
+    "mypy_app": "passed: 31 source files",
+    "lock_check": "passed",
+    "live_semantic_cases": 5,
+    "test_documents_deleted": true
+  },
+  "limits": [
+    "Temporary per-document vectors are not an external vector database or cross-document search.",
+    "Only configured bounded reading blocks are embedded; remaining blocks retain lexical consideration.",
+    "The first broader question can take longer while the temporary index is built.",
+    "MinIO storage and JWT accounts remain deferred deployment work."
+  ]
+}

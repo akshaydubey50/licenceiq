@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "Grounded answer validation must combine deterministic direct lookup, bounded retrieval, model abstention, and strict citations without treating reviewer edits as evidence.",
+    "scope": "The work crosses models, provider transport, configuration, service lifecycle, API routes, application wiring, errors, and focused offline tests.",
+    "reasoning": "The service must isolate a document, resist prompt injection, validate citations, bound concurrent provider work, and prevent late answers from surviving deletion or expiry.",
+    "verification": "New provider fakes, authorization/prerequisite cases, citation validation, lifecycle races, and a later live sample exercise are required."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

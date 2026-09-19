@@ -1,0 +1,25 @@
+{
+  "score": 4,
+  "risk": "high",
+  "tier": "strong",
+  "action": "candidate",
+  "model": "gpt-5.6-sol",
+  "effort": "high",
+  "selected_tier": "strong",
+  "route_state": {
+    "model": "gpt-5.6-sol",
+    "effort": "high",
+    "tier": "strong"
+  },
+  "reasons": [
+    "Complexity score 4/8.",
+    "High impact requires the strong tier.",
+    "Supported strong pair found in preference map."
+  ],
+  "warnings": [],
+  "limits": {
+    "max_attempts": 3,
+    "max_escalations": 1,
+    "max_workers": 2
+  }
+}

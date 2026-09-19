@@ -1,0 +1,55 @@
+{
+  "phase": 6,
+  "title": "Source navigation and evidence highlighting",
+  "status": "complete",
+  "completed_on": "2026-09-19",
+  "contract": "docs/PHASE_6_CONTRACT.md",
+  "capabilities": "docs/routing/phase-6-capabilities.json",
+  "work_units": [
+    {
+      "name": "Source controls, selected evidence state, preview behavior, and responsive styles",
+      "assessment": "docs/routing/phase-6-frontend-assessment.json",
+      "recommendation": {
+        "score": 7,
+        "risk": "medium",
+        "tier": "strong",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "actual_dispatch": {
+        "agent": "/root/phase6_frontend",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "frontend/src/components/document-workspace.tsx",
+          "frontend/src/app/globals.css"
+        ]
+      },
+      "outcome": "accepted after coordinator provenance review and integration checks"
+    }
+  ],
+  "coordinator": {
+    "work": [
+      "Defined the frontend-only source and provenance contract before dispatch.",
+      "Ran the routing helper against current host capabilities.",
+      "Created and ran offline browser acceptance with synthetic evidence and no provider request.",
+      "Reviewed implementation, visual layout, frontend quality checks, and production webpack build."
+    ],
+    "model": "coordinator model unchanged"
+  },
+  "verification": {
+    "frontend_typecheck": "passed",
+    "frontend_lint": "passed",
+    "frontend_format": "passed",
+    "webpack_production_build": "passed",
+    "offline_browser_cases": 8,
+    "provider_calls": 0
+  },
+  "limits": [
+    "No fabricated text-coordinate highlight when OCR geometry is missing.",
+    "PDF page fragments are best effort across native browser viewers.",
+    "MinIO storage and JWT accounts remain deferred deployment work."
+  ]
+}

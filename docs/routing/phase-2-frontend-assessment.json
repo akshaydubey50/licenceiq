@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 0, "scope": 1, "reasoning": 1, "verification": 2},
+  "evidence": {
+    "uncertainty": "The shared read API and allowed interface states are fixed.",
+    "scope": "Existing workspace, typed response boundary and request timeout change together.",
+    "reasoning": "Read state must reset on replacement and avoid stale asynchronous results.",
+    "verification": "There is no frontend unit framework; type checks and real browser scenarios are needed."
+  },
+  "risk": "medium", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

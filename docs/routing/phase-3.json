@@ -1,0 +1,66 @@
+{
+  "phase": 3,
+  "status": "complete",
+  "date": "2026-09-19",
+  "capability_source": "Current collaboration.spawn_agent metadata; checked against capabilities-2026-09-19.json",
+  "work_units": [
+    {
+      "id": "structured-extraction-lifecycle",
+      "assessment": "phase-3-backend-assessment.json",
+      "recommendation": "gpt-5.6-sol / high / strong",
+      "actual": {
+        "agent": "/root/phase3_backend",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "tier": "strong"
+      },
+      "attempts_used": 2,
+      "escalations_used": 0,
+      "outcome": "accepted",
+      "correction": "Replaced shallowly mutable list/dict containers in the frozen result surface with tuples and a serialized immutable mapping; added deep-mutation regression coverage."
+    },
+    {
+      "id": "openai-structured-output-adapter",
+      "assessment": "phase-3-provider-assessment.json",
+      "recommendation": "gpt-5.6-sol / high / strong",
+      "actual": {
+        "agent": "/root/phase3_provider",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "tier": "strong"
+      },
+      "attempts_used": 1,
+      "escalations_used": 0,
+      "outcome": "accepted"
+    },
+    {
+      "id": "integration-live-acceptance-reporting",
+      "actual": {
+        "execution": "direct coordinator",
+        "model": "unchanged session model"
+      },
+      "attempts_used": 1,
+      "escalations_used": 0,
+      "outcome": "accepted",
+      "formatting_correction": "Ruff formatted four newly added files before final verification; no logic change."
+    }
+  ],
+  "verification": {
+    "backend_tests": 100,
+    "backend_ruff": "passed",
+    "backend_format": "passed: 31 files",
+    "backend_mypy": "passed: 25 app files",
+    "dependency_lock": "passed: 39 packages",
+    "live_provider_samples": 2,
+    "live_api_cases": 3,
+    "live_sample_fields": "Seven selected primary fields plus LMV/MCWG and source-block evidence per crop; not a full accuracy metric",
+    "live_privacy_cache_cleanup": "passed"
+  },
+  "limits": [
+    "Phase 4 review/edit UI is not implemented",
+    "Document Q&A is not implemented",
+    "Live checks cover only the two supplied fictional crops",
+    "Single-process extraction coordination"
+  ],
+  "report": "../PHASE_3_REPORT.md"
+}

@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 1, "scope": 1, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The read API contract is fixed; native PDF and raster fallback need new integration.",
+    "scope": "Backend routes, page pipeline and private repository share one lifecycle.",
+    "reasoning": "Deletion and expiry can race paid OCR; cached output must retain document isolation.",
+    "verification": "New mixed PDF fixtures and deterministic concurrent lifecycle tests are required."
+  },
+  "risk": "high", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

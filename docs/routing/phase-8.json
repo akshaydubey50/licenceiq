@@ -1,0 +1,97 @@
+{
+  "phase": 8,
+  "title": "Local submission package",
+  "status": "complete",
+  "completed_on": "2026-09-20",
+  "contract": "docs/PHASE_8_CONTRACT.md",
+  "capabilities": "docs/routing/phase-8-capabilities.json",
+  "work_units": [
+    {
+      "name": "Demo script and submission checklist",
+      "assessment": "docs/routing/phase-8-submission-assessment.json",
+      "recommendation": {
+        "score": 4,
+        "risk": "low",
+        "tier": "balanced",
+        "model": "gpt-5.6-terra",
+        "effort": "medium"
+      },
+      "actual_dispatch": {
+        "agent": "/root/phase8_demo_docs",
+        "model": "gpt-5.6-terra",
+        "effort": "medium",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "docs/DEMO_SCRIPT.md",
+          "docs/SUBMISSION_CHECKLIST.md"
+        ]
+      },
+      "outcome": "accepted after coordinator review"
+    },
+    {
+      "name": "Contract, archive, setup audit, verification, and reporting",
+      "actual_dispatch": {
+        "agent": "coordinator",
+        "model": "coordinator model unchanged",
+        "effort": "n/a",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "docs/PHASE_8_CONTRACT.md",
+          "docs/PHASE_8_REPORT.md",
+          "docs/routing/phase-8-capabilities.json",
+          "docs/routing/phase-8.json",
+          "README.md",
+          "LICENCEIQ_BUILD_PLAN.md",
+          "AGENTS.md",
+          "dist/LicenceIQ-source-2026-09-19.zip"
+        ]
+      },
+      "outcome": "accepted after archive inspection and current local verification"
+    },
+    {
+      "name": "Captioned local demo recording and playback verification",
+      "assessment": "docs/routing/phase-8-video-assessment.json",
+      "recommendation": {
+        "score": 8,
+        "risk": "medium",
+        "tier": "strong",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "actual_dispatch": {
+        "agent": "coordinator",
+        "model": "coordinator model unchanged",
+        "effort": "n/a",
+        "attempts": 3,
+        "escalations": 0,
+        "owned_files": [
+          "dist/LicenceIQ-demo-2026-09-20-captioned.webm",
+          "docs/routing/phase-8-video-assessment.json"
+        ]
+      },
+      "outcome": "accepted after 318.2-second playback metadata and mid-recording frame verification"
+    }
+  ],
+  "verification": {
+    "backend_tests": "185 passed",
+    "backend_ruff_and_mypy": "passed",
+    "backend_format_and_lock": "passed",
+    "frontend_lint_typecheck_and_format": "passed with Node 24",
+    "frontend_webpack_production_build": "passed",
+    "backend_health": "200",
+    "frontend_root": "200",
+    "source_archive_entries": 169,
+    "source_archive_private_paths": 0,
+    "demo_video_duration_seconds": 318.2,
+    "demo_video_dimensions": "1440x900",
+    "demo_video_bytes": 21263148,
+    "demo_document_removed": true
+  },
+  "remaining_candidate_actions": [
+    "Review the completed local video in full before sharing it.",
+    "Deliver the verified local ZIP and video or publish an authorized repository.",
+    "Deploy only after an explicit hosting decision and public-hosting safeguards."
+  ]
+}

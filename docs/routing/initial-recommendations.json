@@ -1,0 +1,96 @@
+{
+  "verified_on": "2026-09-19",
+  "helper": "C:\\Users\\aksha\\.codex\\skills\\coding-orchestrator\\scripts\\select_route.py",
+  "capabilities_source": "Current collaboration.spawn_agent tool metadata; refresh for future sessions.",
+  "note": "Helper recommendations only. Workflow setup was executed directly by the coordinator. No worker was dispatched and future feature work has not begun.",
+  "cases": [
+    {
+      "id": "development-workflow-setup",
+      "execution_status": "coordinator_direct",
+      "actual_worker_dispatch": null,
+      "recommendation": {
+        "score": 2,
+        "risk": "low",
+        "tier": "fast",
+        "action": "candidate",
+        "model": "gpt-5.6-luna",
+        "effort": "low",
+        "selected_tier": "fast",
+        "route_state": {
+          "model": "gpt-5.6-luna",
+          "effort": "low",
+          "tier": "fast"
+        },
+        "reasons": [
+          "Complexity score 2/8.",
+          "Supported fast pair found in preference map."
+        ],
+        "warnings": [],
+        "limits": {
+          "max_attempts": 3,
+          "max_escalations": 1,
+          "max_workers": 2
+        }
+      }
+    },
+    {
+      "id": "frontend-upload-provisional",
+      "execution_status": "planned_not_dispatched",
+      "actual_worker_dispatch": null,
+      "recommendation": {
+        "score": 4,
+        "risk": "medium",
+        "tier": "balanced",
+        "action": "candidate",
+        "model": "gpt-5.6-terra",
+        "effort": "medium",
+        "selected_tier": "balanced",
+        "route_state": {
+          "model": "gpt-5.6-terra",
+          "effort": "medium",
+          "tier": "balanced"
+        },
+        "reasons": [
+          "Complexity score 4/8.",
+          "Supported balanced pair found in preference map."
+        ],
+        "warnings": [],
+        "limits": {
+          "max_attempts": 3,
+          "max_escalations": 1,
+          "max_workers": 2
+        }
+      }
+    },
+    {
+      "id": "backend-upload-provisional",
+      "execution_status": "planned_not_dispatched",
+      "actual_worker_dispatch": null,
+      "recommendation": {
+        "score": 4,
+        "risk": "high",
+        "tier": "strong",
+        "action": "candidate",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "selected_tier": "strong",
+        "route_state": {
+          "model": "gpt-5.6-sol",
+          "effort": "high",
+          "tier": "strong"
+        },
+        "reasons": [
+          "Complexity score 4/8.",
+          "High impact requires the strong tier.",
+          "Supported strong pair found in preference map."
+        ],
+        "warnings": [],
+        "limits": {
+          "max_attempts": 3,
+          "max_escalations": 1,
+          "max_workers": 2
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 1, "scope": 1, "reasoning": 1, "verification": 1},
+  "evidence": {
+    "uncertainty": "Official image and structured output APIs checked; account access remains unverified.",
+    "scope": "Adapter, secret settings and dependency lock are connected.",
+    "reasoning": "Provider errors, refusals and truncation must become safe application errors.",
+    "verification": "Mocked SDK transport verifies data URL, storage flag and response validation."
+  },
+  "risk": "high", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

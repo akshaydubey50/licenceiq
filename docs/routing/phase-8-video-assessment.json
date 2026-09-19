@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The required demo must remain truthful, use a fictional sample, run against the live local service, and the desktop browser-control connector is unavailable in this session.",
+    "scope": "The work coordinates a browser recording, file upload, OCR/extraction, review save, three question paths, source navigation, cleanup, media output, and documentation updates without changing application behavior.",
+    "reasoning": "The automated flow must avoid secrets, use the active document only, wait for real asynchronous UI states, provide explanatory captions, and leave the application with its test document removed.",
+    "verification": "The generated media, its elapsed recording time, local playback metadata, app cleanup, and output-path safety all need independent checks."
+  },
+  "risk": "medium",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

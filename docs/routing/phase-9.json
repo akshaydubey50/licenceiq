@@ -1,0 +1,131 @@
+{
+  "phase": 9,
+  "title": "Private deployment foundation",
+  "status": "complete",
+  "started_on": "2026-09-20",
+  "contract": "docs/PHASE_9_CONTRACT.md",
+  "capabilities": "docs/routing/phase-9-capabilities.json",
+  "completed_on": "2026-09-20",
+  "work_units": [
+    {
+      "name": "JWT bootstrap authentication foundation",
+      "assessment": "docs/routing/phase-9-auth-assessment.json",
+      "recommendation": {
+        "score": 8,
+        "risk": "high",
+        "tier": "strong",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "actual_dispatch": {
+        "agent": "/root/phase9_auth",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "backend/app/core/auth.py",
+          "backend/app/api/auth.py",
+          "backend/app/schemas/auth.py",
+          "backend/tests/test_auth.py"
+        ]
+      },
+      "outcome": "accepted after coordinator dependency, configuration, ownership, and full-suite integration"
+    },
+    {
+      "name": "Private MinIO object-store foundation",
+      "assessment": "docs/routing/phase-9-storage-assessment.json",
+      "recommendation": {
+        "score": 7,
+        "risk": "high",
+        "tier": "strong",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "actual_dispatch": {
+        "agent": "/root/phase9_storage",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "attempts": 3,
+        "escalations": 0,
+        "owned_files": [
+          "backend/app/repositories/object_store.py",
+          "backend/tests/test_object_store.py"
+        ]
+      },
+      "outcome": "accepted after coordinator repository integration and offline cleanup coverage"
+    },
+    {
+      "name": "In-memory browser JWT session flow",
+      "assessment": "docs/routing/phase-9-frontend-auth-assessment.json",
+      "recommendation": {
+        "score": 6,
+        "risk": "high",
+        "tier": "strong",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "actual_dispatch": {
+        "agent": "/root/phase9_frontend_auth",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "frontend/src/app/page.tsx",
+          "frontend/src/components/auth-gate.tsx",
+          "frontend/src/components/document-workspace.tsx",
+          "frontend/src/lib/auth-client.ts",
+          "frontend/src/lib/env.ts",
+          "frontend/src/types/auth.ts",
+          "frontend/.env.example"
+        ]
+      },
+      "outcome": "accepted after coordinator review and production builds in capability and JWT modes"
+    },
+    {
+      "name": "Repository composition, configuration, owner binding, package lock, and setup guidance",
+      "actual_dispatch": {
+        "agent": "coordinator",
+        "model": "coordinator model unchanged",
+        "effort": "n/a",
+        "attempts": 1,
+        "escalations": 0,
+        "owned_files": [
+          "backend/app/core/config.py",
+          "backend/app/main.py",
+          "backend/app/api/documents.py",
+          "backend/app/services/documents.py",
+          "backend/app/repositories/documents.py",
+          "backend/app/models/document.py",
+          "backend/app/services/reading.py",
+          "backend/app/services/extraction.py",
+          "backend/app/services/questions.py",
+          "backend/app/services/review.py",
+          "backend/tests/test_phase9_integration.py",
+          "backend/pyproject.toml",
+          "backend/uv.lock",
+          ".env.example",
+          "docs/PHASE_9_LOCAL_SETUP.md"
+        ]
+      },
+      "outcome": "accepted after combined offline verification"
+    }
+  ],
+  "verification": {
+    "backend_tests": "223 collected and passed in the full offline suite",
+    "phase_9_focused_tests": "38 passed",
+    "backend_ruff": "passed",
+    "backend_format": "48 files already formatted",
+    "backend_mypy": "passed: 35 app source files; focused Phase 9 tests also passed strict mypy",
+    "backend_lock": "passed after adding PyJWT, pwdlib[argon2], and MinIO",
+    "frontend_lint_type_format": "passed with the Node 24 runtime",
+    "frontend_production_builds": "webpack builds passed in both capability and JWT modes",
+    "live_minio_or_deployment": "not run; no infrastructure, credentials, or public release was authorised"
+  },
+  "limits": [
+    "No public deployment, cloud account, repository publication, or external document submission occurs in this phase.",
+    "The Phase 8 source archive and video are historical delivery artifacts; regenerate an archive only when preparing a new handoff that includes Phase 9.",
+    "User registration, token refresh, rate limiting, malware scanning, backups, cross-process compare-and-swap, and operations monitoring remain outside the assessment scope."
+  ]
+}

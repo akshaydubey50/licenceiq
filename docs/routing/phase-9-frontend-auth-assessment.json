@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 1,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The backend login contract is established, and the current document workspace already carries an in-memory bearer capability, but the production JWT mode must coexist with the verified local capability demo.",
+    "scope": "The authentication gate, public environment validation, document upload authorization, response contract, expiry handling, and existing workspace state are connected frontend behaviors.",
+    "reasoning": "The browser must keep a bearer token only in memory, never render or persist it, select the correct authorization source in each mode, and return to login safely on a 401 response.",
+    "verification": "Type checks, linting, formatting, production build, and focused browser or component interaction checks are needed because the local capability and JWT modes both need to remain usable."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

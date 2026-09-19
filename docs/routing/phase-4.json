@@ -1,0 +1,54 @@
+{
+  "phase": 4,
+  "status": "complete",
+  "date": "2026-09-19",
+  "capability_source": "Current collaboration.spawn_agent metadata; checked against capabilities-2026-09-19.json",
+  "work_units": [
+    {
+      "id": "review-persistence-and-api",
+      "assessment": "phase-4-backend-assessment.json",
+      "recommendation": "gpt-5.6-sol / high / strong",
+      "actual": {"agent": "/root/phase4_backend", "model": "gpt-5.6-sol", "effort": "high", "tier": "strong"},
+      "attempts_used": 1,
+      "escalations_used": 0,
+      "outcome": "accepted"
+    },
+    {
+      "id": "review-form-integration",
+      "assessment": "phase-4-frontend-assessment.json",
+      "recommendation": "gpt-5.6-sol / high / strong",
+      "actual": {"agent": "/root/phase4_frontend", "model": "gpt-5.6-sol", "effort": "high", "tier": "strong"},
+      "attempts_used": 2,
+      "escalations_used": 0,
+      "outcome": "accepted",
+      "correction": "Strengthened extraction-response validation so source-only fields cannot carry reviewed values or edited flags."
+    },
+    {
+      "id": "integration-live-acceptance-reporting",
+      "actual": {"execution": "direct coordinator", "model": "unchanged session model"},
+      "attempts_used": 1,
+      "escalations_used": 0,
+      "outcome": "accepted",
+      "coordination": "Added PUT to CORS and corrected browser-harness preflight handling."
+    }
+  ],
+  "verification": {
+    "backend_tests": 123,
+    "backend_ruff": "passed",
+    "backend_format": "passed: 33 files",
+    "backend_mypy": "passed: 26 app files",
+    "dependency_lock": "passed: 39 packages",
+    "frontend_type_lint_format_build": "passed",
+    "offline_browser_scenarios": 7,
+    "live_review_samples": 1,
+    "live_review_api_cases": 4,
+    "live_browser_cases": 5,
+    "live_review_scope": "Fictional Delhi crop only; preserved extraction, durable review, capability protection and cleanup"
+  },
+  "limits": [
+    "Temporary document capability remains in browser memory only",
+    "No long-term reviewed-data store or concurrent-edit conflict handling",
+    "Document Q&A and retrieval remain unimplemented"
+  ],
+  "report": "../PHASE_4_REPORT.md"
+}

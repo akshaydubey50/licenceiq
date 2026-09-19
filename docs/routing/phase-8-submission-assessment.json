@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 1,
+    "reasoning": 1,
+    "verification": 1
+  },
+  "evidence": {
+    "uncertainty": "The assessment specifies a 5-10 minute demonstration and README requirements, while deployment remains optional and no hosting account is configured.",
+    "scope": "The work creates reviewer-facing documentation without changing runtime behavior, providers, access control, or storage.",
+    "reasoning": "The guide must present the actual implemented flow, distinguish source evidence from edited review values, and avoid unverified accuracy or deployment claims.",
+    "verification": "Links, commands, sample paths, and claims can be checked locally; final video recording is a human submission action."
+  },
+  "risk": "low",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

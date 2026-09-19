@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 1,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The API contract is fixed, while exact compact chat presentation and retry interaction must fit the existing document workspace.",
+    "scope": "The implementation spans untrusted response decoding, typed API calls, document-scoped chat state, the existing workspace component, and responsive styles.",
+    "reasoning": "The UI must preserve input on failure, cancel requests, avoid showing citations for unavailable answers, and clear state with document lifecycle changes.",
+    "verification": "No existing chat path covers typed decoding, keyboard interaction, retry preservation, removal reset, and compact layout."
+  },
+  "risk": "medium",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

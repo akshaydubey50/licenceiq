@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 1, "verification": 2},
+  "evidence": {
+    "uncertainty": "The existing client workspace and API boundary are established, while the full review interaction is new.",
+    "scope": "Response validation, chained read/extract/load flow, editable state, save/retry behavior, accessibility and responsive presentation are connected.",
+    "reasoning": "The UI must distinguish source facts from reviewer corrections and retain failed-save state.",
+    "verification": "Type/lint/build and browser scenarios across loading, edit/save/error and mobile states are required."
+  },
+  "risk": "high", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

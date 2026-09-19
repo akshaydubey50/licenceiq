@@ -1,0 +1,10 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The result, API and provider boundary are fixed, while stored result integration needs careful implementation.",
+    "scope": "Models, private metadata, lifecycle locks, routes, app factory and focused tests change together.",
+    "reasoning": "Evidence grounding, cache publication and delete/expiry races protect document integrity.",
+    "verification": "Mocked provider, capability, race and two-sample integration cases are all needed."
+  },
+  "risk": "high", "attempts_used": 0, "escalate": false, "escalations_used": 0
+}

@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The self-hosted MinIO target is confirmed, while the existing repository combines private bytes and JSON sidecars and has no object-store abstraction.",
+    "scope": "The adapter must fit saving, reading, conditional state updates, deletion, and expiry cleanup without changing the immutable reading, extraction, review, or question contracts.",
+    "reasoning": "Private generated keys, publishing order, cleanup after failed writes, ownership metadata, and object-store error normalisation must preserve document isolation and lifecycle guarantees.",
+    "verification": "Offline fake or mocked object-store tests are needed for lifecycle failure cases, then the full backend test suite and static checks validate compatibility. A live MinIO service is outside ordinary test scope."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}
