@@ -6,6 +6,33 @@ A workspace for reading, reviewing, and understanding driving licences.
 
 Development follows the [coding-orchestrator workflow](docs/DEVELOPMENT_ROUTING.md), with project instructions in [AGENTS.md](AGENTS.md). Independent coding tasks are routed by complexity and risk to supported worker models, with coordinator review and verification.
 
+## Assessment requirement coverage
+
+LicenceIQ implements the complete local workflow requested in the technical
+assessment. It is deliberately scoped to one driving licence per upload; the
+included Maharashtra and Delhi fictional samples are separate files in
+[`samples/`](samples/).
+
+| Assessment requirement | LicenceIQ implementation |
+| --- | --- |
+| Upload document | Accepts one PDF, PNG, JPG, or JPEG driving licence after size, MIME type, structure, and image-decode validation. |
+| Read and extract | Reads native PDF text locally and uses OpenAI vision OCR for images or scanned PDF pages. It extracts nullable, source-backed licence fields. |
+| Auto-populate form | Loads supported values into the review form: name, licence number, date of birth, issue and expiry dates, address, vehicle classes, issuing authority, and other directly supported fields. |
+| Review and edit | Saves reviewer corrections separately from immutable source extraction, preserving the original value and its evidence. |
+| Ask the document | Answers direct and broader questions only from the active document's evidence. Unsupported questions return an explicit unavailable response rather than an invented answer. |
+| Document and data view | Displays the document, reviewed data, question panel, source page, and exact evidence excerpt in one workspace. |
+| RAG and source grounding | Uses bounded same-document semantic-plus-lexical retrieval for paraphrased questions, validates cited evidence IDs locally, and never uses another document's content. |
+| Security and error handling | Keeps provider keys server-side; protects documents with an in-memory capability or optional JWT ownership; validates uploads; expires temporary data; and returns controlled errors. |
+
+### Quick reviewer workflow
+
+1. Start the backend and frontend, then open `http://127.0.0.1:3000`.
+2. Upload one individual fictional sample from `samples/`.
+3. Choose **Read document** to run reading and source-backed extraction.
+4. Compare the populated form with the preview, edit a field if needed, and choose **Save review**.
+5. Ask a direct question, a paraphrased question, and an unsupported question; inspect each available citation.
+6. Choose **Remove document** when finished.
+
 ## Run locally
 
 Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), and Node.js 22.13+ LTS or 24 LTS with npm. The toolchain also accepts Node.js 20.19+, but the older system Node.js 20.11 does not meet every development dependency's engine requirement. This project keeps frontend and backend dependencies isolated and includes lockfiles.
@@ -269,7 +296,7 @@ Stop the development frontend first if it uses the same port. The development he
 
 ## Submission package
 
-The local submission package is prepared for this assessment. The [captioned demo video](dist/LicenceIQ-demo-2026-09-20-captioned.webm) is a 5:18 localhost walkthrough using the fictional Delhi crop. The [demo script](docs/DEMO_SCRIPT.md) and [submission checklist](docs/SUBMISSION_CHECKLIST.md) explain the flow and delivery review. The remaining candidate action is choosing ZIP versus an authorized repository link; deploy only after suitable public-hosting safeguards are in place. The detailed package evidence is in the [Phase 8 report](docs/PHASE_8_REPORT.md).
+The source code, setup instructions, fictional samples, architecture, and phase reports are included in this repository. A 5:18 captioned localhost walkthrough using the fictional Delhi crop is prepared separately for the assessment delivery; binary recordings are intentionally excluded from Git. The [demo script](docs/DEMO_SCRIPT.md) and [submission checklist](docs/SUBMISSION_CHECKLIST.md) explain the flow and delivery review. Include the video file or an authorized video link alongside the repository when submitting. Deploy only after suitable public-hosting safeguards are in place. The detailed package evidence is in the [Phase 8 report](docs/PHASE_8_REPORT.md).
 
 ## AI approach and decisions
 
