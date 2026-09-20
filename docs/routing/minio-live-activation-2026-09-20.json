@@ -1,0 +1,58 @@
+{
+  "title": "Activate the existing MinIO document repository for local uploads",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 1,
+      "verification": 2
+    },
+    "evidence": {
+      "uncertainty": "The repository and settings selection already exist, but the active backend process and live object-store behavior must be checked.",
+      "scope": "The work changes one local runtime setting and verifies the backend, MinIO bucket, and upload persistence together.",
+      "reasoning": "The selected MinIO repository writes generated content and metadata keys through one restricted service account.",
+      "verification": "A real upload, retrieval, object-name inspection, cleanup, and regression checks are required because this handles private licence files."
+    },
+    "risk": "high",
+    "attempts_used": 0,
+    "escalate": false,
+    "escalations_used": 0,
+    "route_helper": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "action": "candidate"
+    }
+  },
+  "execution": {
+    "status": "completed",
+    "attempts": 2,
+    "escalations": 0,
+    "workers": [
+      {
+        "task": "/root/minio_activation_review",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "scope": "read-only review of the existing MinIO repository, service startup, and live-smoke acceptance criteria",
+        "outcome": "completed"
+      }
+    ],
+    "coordinator_scope": "local configuration activation, project-managed API restart, live persistence verification, and regression checks",
+    "recovery": "The first restart used system Python, which lacks the locked minio dependency. The second attempt used uv run and started successfully; this was an environment correction, not a model escalation."
+  },
+  "validation": {
+    "passed": [
+      "MinIO and PostgreSQL containers were already live on loopback-only ports.",
+      "The local API restarted through uv run with LICENCEIQ_DOCUMENT_STORAGE_BACKEND=minio and returned health 200.",
+      "A generated PNG upload produced exactly two generated MinIO object keys beneath documents/content and documents/metadata, with no filename in either key.",
+      "The document remained retrievable with its capability after an API restart; a wrong capability returned 404.",
+      "Protected API deletion removed both temporary MinIO objects.",
+      "Full backend pytest suite exited 0.",
+      "Ruff lint and format checks passed.",
+      "mypy passed for 39 source files."
+    ],
+    "not_run": [
+      "Live OpenAI OCR, extraction, embedding, and question calls were intentionally not invoked by the storage smoke test.",
+      "PostgreSQL durable-repository integration remains separate future work; the active MinIO repository stores document bytes and current private metadata objects."
+    ]
+  }
+}
