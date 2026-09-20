@@ -1,0 +1,47 @@
+{
+  "work_unit": "Evidence-cited natural licence-holder summary Q&A",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 2,
+      "verification": 1
+    },
+    "total": 5,
+    "risk_override": "strong minimum because the summary must preserve immutable evidence, source ordering, and reviewer-value isolation",
+    "recommendation": {
+      "tier": "strong",
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    }
+  },
+  "dispatch": [
+    {
+      "scope": "Natural-language regression for holder summary behavior",
+      "owner": "holder_summary_tests",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection"
+    },
+    {
+      "scope": "Deterministic evidence-cited summary implementation and citation ordering",
+      "owner": "coordinator",
+      "attempt": 1,
+      "outcome": "accepted after focused verification"
+    }
+  ],
+  "behavior": {
+    "intent": "Summary, summarize, summarise, overview, and profile requests scoped to a licence, holder, person, or document use direct summary handling.",
+    "answer": "The response labels available immutable extracted standard fields and cites the backing reading blocks in source order.",
+    "safety": "Missing or invalid evidence returns the fixed unavailable result. Reviewer edits do not contribute to the answer."
+  },
+  "verification": {
+    "focused": "Natural summary plus direct birth-date and multi-field regressions passed.",
+    "static": "Ruff lint, Ruff format check, and mypy passed for the changed question service and tests."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

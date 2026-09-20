@@ -243,15 +243,33 @@ _OBVIOUSLY_UNRELATED_PHRASES = (
     "who invented",
     "who wrote",
 )
-_ADDRESS_RETRIEVAL_TERMS = frozenset({"address", "residence", "residential"})
+_ADDRESS_RETRIEVAL_TERMS = frozenset(
+    {
+        "address",
+        "postal",
+        "postcode",
+        "pincode",
+        "residence",
+        "residential",
+        "zip",
+    }
+)
+_AUTHORITY_RETRIEVAL_TERMS = frozenset({"authority", "issuing", "rto"})
+_EXPIRY_RETRIEVAL_TERMS = frozenset(
+    {"expiry", "expiration", "expire", "expires", "valid", "validity"}
+)
+_LICENCE_NUMBER_RETRIEVAL_TERMS = frozenset(
+    {"licence", "license", "dl", "number", "no"}
+)
+_HOLDER_NAME_RETRIEVAL_TERMS = frozenset({"holder", "name", "person"})
+_SUMMARY_TERMS = frozenset({"summary", "summarise", "summarize", "overview", "profile"})
+_SUMMARY_SCOPE_TERMS = frozenset({"document", "holder", "licence", "license", "person"})
 _RETRIEVAL_SYNONYM_GROUPS: tuple[frozenset[str], ...] = (
-    frozenset({"licence", "license", "dl", "number", "no"}),
-    frozenset({"holder", "name", "person"}),
     frozenset({"birth", "dob", "born"}),
-    frozenset({"issue", "issued", "authority", "rto"}),
-    frozenset({"expiry", "expiration", "expire", "expires", "valid", "validity"}),
-    _ADDRESS_RETRIEVAL_TERMS,
-    frozenset({"vehicle", "vehicles", "class", "classes", "category", "cov"}),
+    _EXPIRY_RETRIEVAL_TERMS,
+    frozenset(
+        {"vehicle", "vehicles", "class", "classes", "category", "categories", "cov"}
+    ),
     frozenset(
         {
             "endorsement",
@@ -265,6 +283,7 @@ _RETRIEVAL_SYNONYM_GROUPS: tuple[frozenset[str], ...] = (
     frozenset({"vision", "eyesight", "corrective", "lens", "lenses"}),
 )
 _RRF_RANK_CONSTANT = 60
+_MAX_ADJACENT_BLOCK_DISTANCE = 2
 
 
 class QuestionService:
@@ -342,6 +361,19 @@ class QuestionService:
 
             if self._is_out_of_scope(request.question):
                 result = self._out_of_scope(snapshot.document_id, request.question)
+                self._check_deadline(deadline)
+                self._ensure_current(snapshot, authorization)
+                self._persist_signed_result(snapshot, result)
+                return result
+
+            if self._is_licence_summary(request.question):
+                result = self._summary_result(
+                    snapshot.document_id,
+                    request.question,
+                    reading,
+                    extraction,
+                )
+                result = self._guard_output(result, deadline)
                 self._check_deadline(deadline)
                 self._ensure_current(snapshot, authorization)
                 self._persist_signed_result(snapshot, result)
@@ -444,7 +476,17 @@ class QuestionService:
             QuestionService._contains_phrase(normalized, term) for term in _RELATIONSHIP_TERMS
         )
         patterns: tuple[tuple[tuple[str, ...], tuple[ExtractedField, ...]], ...] = (
-            (("full name", "holder name", "licence holder"), (licence.full_name,)),
+            (
+                (
+                    "full name",
+                    "holder name",
+                    "name of licence holder",
+                    "name of the licence holder",
+                    "who is licence holder",
+                    "who is the licence holder",
+                ),
+                (licence.full_name,),
+            ),
             (
                 ("licence number", "license number", "dl number", "dl no"),
                 (licence.licence_number,),
@@ -485,7 +527,10 @@ class QuestionService:
                 ),
                 licence.vehicle_classes,
             ),
-            (("issuing authority", "issued by", "rto"), (licence.issuing_authority,)),
+            (
+                ("issuing authority", "authority issued", "issued by", "rto"),
+                (licence.issuing_authority,),
+            ),
         )
         for phrases, fields in patterns:
             if any(QuestionService._contains_phrase(normalized, phrase) for phrase in phrases):
@@ -499,7 +544,14 @@ class QuestionService:
             standard_matches.append((licence.date_of_birth,))
         has_explicit_holder_name = any(
             QuestionService._contains_phrase(normalized, phrase)
-            for phrase in ("full name", "holder name", "licence holder")
+            for phrase in (
+                "full name",
+                "holder name",
+                "name of licence holder",
+                "name of the licence holder",
+                "who is licence holder",
+                "who is the licence holder",
+            )
         )
         if (
             QuestionService._contains_phrase(normalized, "name")
@@ -577,6 +629,76 @@ class QuestionService:
                         QuestionCitation(block_id=block_id, page_number=evidence.page_number)
                     )
         answer = ", ".join(field.value for field in present if field.value is not None)
+        if len(answer) > 4096 or len(citations) > 20:
+            raise self._too_large()
+        return QuestionResult(
+            document_id=document_id,
+            question=question,
+            status=QuestionStatus.ANSWERED,
+            answer=answer,
+            citations=tuple(citations),
+            created_at=self.now_provider(),
+        )
+
+    def _summary_result(
+        self,
+        document_id: str,
+        question: str,
+        reading: ReadingResult,
+        extraction: ExtractionResult,
+    ) -> QuestionResult:
+        """Summarize only immutable, evidence-backed holder fields with clear labels."""
+        licence = extraction.licence
+        groups = (
+            ("Full name", (licence.full_name,)),
+            ("Driving licence number", (licence.licence_number,)),
+            ("Date of birth", (licence.date_of_birth,)),
+            ("Date of issue", (licence.date_of_issue,)),
+            ("Date of expiry", (licence.date_of_expiry,)),
+            ("Address", (licence.address,)),
+            ("Vehicle classes", licence.vehicle_classes),
+            ("Issuing authority", (licence.issuing_authority,)),
+        )
+        reading_index = self._evidence_index(reading)
+        source_order = {
+            block_id: index
+            for index, block_id in enumerate(
+                evidence.block_id
+                for page in reading.pages
+                for evidence in page.blocks
+                if evidence.block_id is not None
+            )
+        }
+        citations: list[QuestionCitation] = []
+        seen: set[str] = set()
+        fragments: list[str] = []
+        for label, fields in groups:
+            present = tuple(field for field in fields if field.value is not None)
+            if not present:
+                continue
+            for field in present:
+                if not field.evidence:
+                    return self._unavailable(document_id, question)
+                for evidence in field.evidence:
+                    block_id = evidence.block_id
+                    if (
+                        block_id is None
+                        or block_id not in reading_index
+                        or reading_index[block_id] != evidence
+                    ):
+                        return self._unavailable(document_id, question)
+                    if block_id not in seen:
+                        seen.add(block_id)
+                        citations.append(
+                            QuestionCitation(block_id=block_id, page_number=evidence.page_number)
+                        )
+            fragments.append(
+                f"{label}: {', '.join(field.value for field in present if field.value is not None)}"
+            )
+        if not fragments:
+            return self._unavailable(document_id, question)
+        citations.sort(key=lambda citation: source_order[citation.block_id])
+        answer = "; ".join(fragments)
         if len(answer) > 4096 or len(citations) > 20:
             raise self._too_large()
         return QuestionResult(
@@ -683,12 +805,16 @@ class QuestionService:
                 start=1,
             )
         }
+        adjacent_rank = self._adjacent_rank(retrieval_query, reading, candidates)
         ranked: list[tuple[float, int, int, int, Evidence]] = []
         for order, evidence, matches, _semantic_score in candidates:
             reciprocal_score = 1.0 / (_RRF_RANK_CONSTANT + semantic_rank[order])
             lexical_position = lexical_rank.get(order)
             if lexical_position is not None:
                 reciprocal_score += 1.0 / (_RRF_RANK_CONSTANT + lexical_position)
+            adjacent_position = adjacent_rank.get(order)
+            if adjacent_position is not None:
+                reciprocal_score += 1.0 / (_RRF_RANK_CONSTANT + adjacent_position)
             ranked.append((-reciprocal_score, -matches, semantic_rank[order], order, evidence))
         ranked.sort(key=lambda item: item[:4])
 
@@ -718,6 +844,56 @@ class QuestionService:
             selected_characters = next_size
         return tuple(selected)
 
+    def _adjacent_rank(
+        self,
+        retrieval_query: str,
+        reading: ReadingResult,
+        candidates: list[tuple[int, Evidence, int, float]],
+    ) -> dict[int, int]:
+        """Rank bounded same-page continuations after a matching multiline heading."""
+        section_terms = self._adjacent_section_terms(retrieval_query)
+        if not section_terms:
+            return {}
+
+        global_order_by_id = {
+            evidence.block_id: order
+            for order, evidence, _matches, _semantic_score in candidates
+            if evidence.block_id is not None
+        }
+        adjacent_orders: list[int] = []
+        for page in reading.pages:
+            for page_order, evidence in enumerate(page.blocks):
+                if not (self._terms(evidence.source_text) & section_terms):
+                    continue
+                for distance in range(1, _MAX_ADJACENT_BLOCK_DISTANCE + 1):
+                    adjacent_page_order = page_order + distance
+                    if adjacent_page_order >= len(page.blocks):
+                        break
+                    adjacent_id = page.blocks[adjacent_page_order].block_id
+                    if adjacent_id is None:
+                        raise self._provider_error()
+                    adjacent_orders.append(global_order_by_id[adjacent_id])
+        return {
+            order: rank
+            for rank, order in enumerate(dict.fromkeys(adjacent_orders), start=1)
+        }
+
+    @staticmethod
+    def _adjacent_section_terms(value: str) -> frozenset[str]:
+        """Return section labels whose values commonly continue on following OCR lines."""
+        normalized = QuestionService._normalize_phrase(value)
+        terms = QuestionService._terms(value)
+        if terms & _ADDRESS_RETRIEVAL_TERMS or (
+            "live" in terms and terms & {"holder", "person", "resident"}
+        ):
+            return _ADDRESS_RETRIEVAL_TERMS
+        if terms & _AUTHORITY_RETRIEVAL_TERMS or any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in ("authority issued", "issued by")
+        ):
+            return _AUTHORITY_RETRIEVAL_TERMS
+        return frozenset()
+
     def _retrieval_query(self, request: QuestionRequest, deadline: float) -> str:
         """Rewrite only conversational questions and safely retain the original on failure."""
         if not request.history:
@@ -744,13 +920,35 @@ class QuestionService:
     @staticmethod
     def _expanded_retrieval_terms(value: str) -> set[str]:
         """Expand a small licence-domain vocabulary before deterministic lexical ranking."""
+        normalized = QuestionService._normalize_phrase(value)
         terms = QuestionService._terms(value) - _STOP_WORDS
         expanded = set(terms)
         for group in _RETRIEVAL_SYNONYM_GROUPS:
             if terms & group:
                 expanded.update(group)
+
+        # Subject words must not turn an address or date request into a name
+        # lookup, and mentioning a licence must not favor its number.
+        if terms & {"number", "no"} and terms & {"licence", "license", "dl"}:
+            expanded.update(_LICENCE_NUMBER_RETRIEVAL_TERMS)
+        if "name" in terms:
+            expanded.update(_HOLDER_NAME_RETRIEVAL_TERMS)
+        if terms & _AUTHORITY_RETRIEVAL_TERMS or any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in ("authority issued", "issued by")
+        ):
+            expanded.update(_AUTHORITY_RETRIEVAL_TERMS)
+        if terms & _ADDRESS_RETRIEVAL_TERMS:
+            expanded.update(_ADDRESS_RETRIEVAL_TERMS)
         if "location" in terms and terms & {"resident", "residence", "residential"}:
             expanded.update(_ADDRESS_RETRIEVAL_TERMS)
+        if "live" in terms and terms & {"holder", "person", "resident"}:
+            expanded.update(_ADDRESS_RETRIEVAL_TERMS)
+        if any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in ("until what date", "date can", "date is valid", "how long is valid")
+        ):
+            expanded.update(_EXPIRY_RETRIEVAL_TERMS)
         return expanded
 
     def _bounded_index_evidence(self, reading: ReadingResult) -> tuple[Evidence, ...]:
@@ -986,6 +1184,12 @@ class QuestionService:
             QuestionService._contains_phrase(normalized, phrase)
             for phrase in _OBVIOUSLY_UNRELATED_PHRASES
         )
+
+    @staticmethod
+    def _is_licence_summary(question: str) -> bool:
+        """Recognize broad holder/document summaries without guessing a single field."""
+        terms = QuestionService._terms(question)
+        return bool(terms & _SUMMARY_TERMS and terms & _SUMMARY_SCOPE_TERMS)
 
     @staticmethod
     def _normalize_phrase(value: str) -> str:

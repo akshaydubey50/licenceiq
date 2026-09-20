@@ -454,6 +454,49 @@ def add_birth_and_issue_dates(
     repository._write_metadata_atomic(stored, repository._metadata_path(record.document_id))
 
 
+def add_multiline_address(
+    application: FastAPI,
+    record: StoredDocumentRecord,
+) -> tuple[Evidence, ...]:
+    """Attach a three-line source address while preserving immutable line IDs."""
+    repository = application.state.document_service.repository
+    stored = repository.get(record.document_id)
+    assert stored is not None and stored.reading is not None and stored.extraction is not None
+    page = stored.reading.pages[0]
+    added = (
+        evidence(record.document_id, 1, 7, "Address: H No. 18, Pocket B-3,"),
+        evidence(record.document_id, 1, 8, "Patparganj,"),
+        evidence(record.document_id, 1, 9, "New Delhi - 110091"),
+    )
+    stored.reading = stored.reading.model_copy(
+        update={
+            "pages": (
+                page.model_copy(
+                    update={
+                        "text": "\n".join(item.source_text for item in (*page.blocks, *added)),
+                        "blocks": (*page.blocks, *added),
+                    }
+                ),
+            )
+        }
+    )
+    stored.extraction = stored.extraction.model_copy(
+        update={
+            "licence": stored.extraction.licence.model_copy(
+                update={
+                    "address": ExtractedField(
+                        value="H No. 18, Pocket B-3, Patparganj, New Delhi - 110091",
+                        raw_value="H No. 18, Pocket B-3, Patparganj, New Delhi - 110091",
+                        evidence=added,
+                    )
+                }
+            )
+        }
+    )
+    repository._write_metadata_atomic(stored, repository._metadata_path(record.document_id))
+    return added
+
+
 @pytest.mark.parametrize(
     ("question", "answer", "block_ids"),
     [
@@ -520,11 +563,61 @@ def test_natural_birth_date_question_uses_immutable_extraction_without_providers
     assert response.status_code == 200
     assert response.json()["status"] == "ANSWERED"
     assert response.json()["answer"] == "07/11/1994"
-    assert response.json()["citations"] == [
-        {"block_id": "page-1-line-7", "page_number": 1}
+    assert response.json()["citations"] == [{"block_id": "page-1-line-7", "page_number": 1}]
+    assert provider.calls == 0
+    assert application.state.question_service.embedding_provider.requests == []
+
+
+def test_natural_holder_summary_uses_labelled_immutable_extraction_without_providers(
+    tmp_path: Path,
+) -> None:
+    provider = StaticAnswerProvider(unavailable())
+    application, record = make_application(tmp_path, provider)
+    add_birth_and_issue_dates(application, record)
+    repository = application.state.document_service.repository
+    stored = repository.get(record.document_id)
+    assert stored is not None and stored.extraction is not None
+    source_extraction = stored.extraction
+    stored.review = ReviewState(
+        fields=ReviewFields(
+            full_name="CORRECTED NAME",
+            licence_number="CORRECTED NUMBER",
+            date_of_birth="01/01/2000",
+            date_of_issue="02/02/2002",
+            date_of_expiry="03/03/2003",
+            address="99 Corrected Avenue",
+            vehicle_classes=("BUS",),
+            issuing_authority="Corrected Authority",
+            other_information={},
+        ),
+        updated_at=NOW,
+    )
+    repository._write_metadata_atomic(stored, repository._metadata_path(record.document_id))
+
+    with TestClient(application) as client:
+        response = post_question(client, record.document_id, "summarize licence person")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ANSWERED"
+    assert "Full name: PRIYA SHARMA" in body["answer"]
+    assert "Date of birth: 07/11/1994" in body["answer"]
+    assert "Driving licence number: MH12 20260001234" in body["answer"]
+    assert "Vehicle classes: LMV, MCWG" in body["answer"]
+    assert "CORRECTED" not in body["answer"]
+    assert "BUS" not in body["answer"]
+    assert body["citations"] == [
+        {"block_id": "page-1-line-1", "page_number": 1},
+        {"block_id": "page-1-line-2", "page_number": 1},
+        {"block_id": "page-1-line-3", "page_number": 1},
+        {"block_id": "page-1-line-4", "page_number": 1},
+        {"block_id": "page-1-line-5", "page_number": 1},
+        {"block_id": "page-1-line-7", "page_number": 1},
+        {"block_id": "page-1-line-8", "page_number": 1},
     ]
     assert provider.calls == 0
     assert application.state.question_service.embedding_provider.requests == []
+    assert repository.get(record.document_id).extraction == source_extraction
 
 
 def test_explicit_multi_fact_question_returns_all_source_fields_without_providers(
@@ -619,6 +712,144 @@ def test_address_paraphrases_use_immutable_extraction_without_providers(
     assert answer_provider.calls == 0
     assert application.state.question_service.embedding_provider.requests == []
     assert repository.get(record.document_id).extraction == source_extraction
+
+
+def test_holder_subject_does_not_override_residence_intent(tmp_path: Path) -> None:
+    candidate = AnswerCandidate(
+        status="ANSWERED",
+        answer="H No. 18, Pocket B-3, Patparganj, New Delhi - 110091",
+        block_ids=("page-1-line-7", "page-1-line-8", "page-1-line-9"),
+    )
+    answer_provider = StaticAnswerProvider(candidate)
+    application, record = make_application(tmp_path, answer_provider)
+    add_multiline_address(application, record)
+
+    with TestClient(application) as client:
+        response = post_question(
+            client,
+            record.document_id,
+            "Where does the licence holder live?",
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ANSWERED"
+    assert response.json()["answer"] == candidate.answer
+    assert answer_provider.calls == 1
+    selected_ids = tuple(block.block_id for block in answer_provider.contexts[0].blocks)
+    assert selected_ids[:3] == (
+        "page-1-line-7",
+        "page-1-line-8",
+        "page-1-line-9",
+    )
+
+
+def test_postal_follow_up_promotes_bounded_same_page_address_lines(tmp_path: Path) -> None:
+    candidate = AnswerCandidate(
+        status="ANSWERED",
+        answer="110091",
+        block_ids=("page-1-line-9",),
+    )
+    answer_provider = StaticAnswerProvider(candidate)
+    rewrite_provider = StaticQueryRewriteProvider(
+        QueryRewriteResult(
+            query="postal code for the holder address",
+            intent=QueryIntent.FOLLOW_UP,
+        )
+    )
+    application, record = make_application(
+        tmp_path,
+        answer_provider,
+        query_rewrite_provider=rewrite_provider,
+        question_max_selected_blocks=4,
+    )
+    add_multiline_address(application, record)
+
+    with TestClient(application) as client:
+        response = post_question(
+            client,
+            record.document_id,
+            "What is the postal code there?",
+            history=[{"question": "Where does the licence holder live?"}],
+        )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "110091"
+    selected = answer_provider.contexts[0].blocks
+    assert len(selected) <= 4
+    assert tuple(block.block_id for block in selected[:3]) == (
+        "page-1-line-7",
+        "page-1-line-8",
+        "page-1-line-9",
+    )
+    assert all(block.page_number == 1 for block in selected)
+
+
+def test_explicit_holder_name_and_address_can_be_returned_together(tmp_path: Path) -> None:
+    answer_provider = StaticAnswerProvider(unavailable())
+    application, record = make_application(tmp_path, answer_provider)
+    add_multiline_address(application, record)
+
+    with TestClient(application) as client:
+        response = post_question(
+            client,
+            record.document_id,
+            "What are the holder's name and address?",
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ANSWERED"
+    assert response.json()["answer"] == (
+        "PRIYA SHARMA, H No. 18, Pocket B-3, Patparganj, New Delhi - 110091"
+    )
+    assert answer_provider.calls == 0
+    assert application.state.question_service.embedding_provider.requests == []
+
+
+def test_authority_issued_wording_uses_immutable_extraction(tmp_path: Path) -> None:
+    answer_provider = StaticAnswerProvider(unavailable())
+    application, record = make_application(tmp_path, answer_provider)
+    repository = application.state.document_service.repository
+    stored = repository.get(record.document_id)
+    assert stored is not None and stored.reading is not None and stored.extraction is not None
+    page = stored.reading.pages[0]
+    authority = evidence(record.document_id, 1, 7, "Transport Department, Delhi")
+    stored.reading = stored.reading.model_copy(
+        update={
+            "pages": (
+                page.model_copy(
+                    update={
+                        "text": f"{page.text}\n{authority.source_text}",
+                        "blocks": (*page.blocks, authority),
+                    }
+                ),
+            )
+        }
+    )
+    stored.extraction = stored.extraction.model_copy(
+        update={
+            "licence": stored.extraction.licence.model_copy(
+                update={
+                    "issuing_authority": source_field(authority, "Transport Department, Delhi")
+                }
+            )
+        }
+    )
+    repository._write_metadata_atomic(stored, repository._metadata_path(record.document_id))
+
+    with TestClient(application) as client:
+        response = post_question(
+            client,
+            record.document_id,
+            "Which authority issued this licence?",
+        )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Transport Department, Delhi"
+    assert response.json()["citations"] == [
+        {"block_id": "page-1-line-7", "page_number": 1}
+    ]
+    assert answer_provider.calls == 0
+    assert application.state.question_service.embedding_provider.requests == []
 
 
 def test_location_alone_does_not_map_to_address(tmp_path: Path) -> None:
