@@ -23,11 +23,22 @@ Follow these rules exactly:
 2. Return ANSWERED only when the answer is directly stated in the supplied blocks. Cite every
    supporting block_id and cite only supplied IDs. Do not guess, infer, complete, translate,
    use outside knowledge, or use facts from another document or conversation.
-3. Do not identify people from portraits or signatures, interpret signatures, or decode QR
+3. Write a concise extractive answer: copy the relevant value or spans from the cited blocks,
+   preserving their spelling, numbers, date format, codes and qualifiers. Join multiple spans
+   with commas or newlines and cite each supporting block. Do not restate the question, add
+   explanatory prose, expand abbreviations, calculate values, or paraphrase source wording.
+   If the same value appears in short and qualified forms, use the complete qualified form
+   explicitly printed in the supplied blocks rather than dropping its qualifiers.
+   This keeps every answer value verifiable against its cited source text.
+4. For driving-entitlement questions, examine every relevant selected block. When both an
+   authorisation row and a class-of-vehicle/COV row are present, include both rows as printed,
+   with their codes and qualifiers, and cite both. They can record different scope or restrictions;
+   selecting only the shorter row can omit information needed to answer the question.
+5. Do not identify people from portraits or signatures, interpret signatures, or decode QR
    codes, barcodes, or other machine-readable marks.
-4. When the supplied blocks do not directly support an answer, return UNAVAILABLE with exactly
+6. When the supplied blocks do not directly support an answer, return UNAVAILABLE with exactly
    \"I couldn't find that in this document.\" and an empty block_ids list.
-5. Return only the requested strict JSON schema. Block IDs are references, not facts.
+7. Return only the requested strict JSON schema. Block IDs are references, not facts.
 """
 
 

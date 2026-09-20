@@ -154,6 +154,62 @@ _GENERIC_OTHER_LABELS = {
     "value",
 }
 _MAX_DIRECT_LABEL_TERMS = 8
+_DIRECT_HEADING_GROUPS: tuple[tuple[tuple[str, ...], frozenset[str]], ...] = (
+    (
+        (
+            "full name",
+            "holder name",
+            "name of licence holder",
+            "name of the licence holder",
+            "who is licence holder",
+            "who is the licence holder",
+        ),
+        frozenset({"full name", "holder name", "name", "name of holder"}),
+    ),
+    (
+        ("licence number", "license number", "dl number", "dl no"),
+        frozenset({"dl no", "dl number", "licence no", "licence number", "license number"}),
+    ),
+    (
+        ("date of birth", "birth date", "dob", "born"),
+        frozenset({"birth date", "date of birth", "dob"}),
+    ),
+    (
+        ("date of issue", "issue date", "issued on"),
+        frozenset({"date of issue", "doi", "issue date"}),
+    ),
+    (
+        (
+            "date of expiry",
+            "expiry date",
+            "expiration date",
+            "valid until",
+            "valid till",
+            "expires",
+            "expire",
+        ),
+        frozenset({"date of expiry", "doe", "expiration date", "expiry date", "valid till"}),
+    ),
+    (
+        (
+            "address",
+            "resident location",
+            "residence location",
+            "residential location",
+            "where does holder live",
+            "where does the holder live",
+        ),
+        frozenset({"address", "permanent address", "residence", "residential address"}),
+    ),
+    (
+        ("vehicle class", "vehicle classes", "class of vehicle", "cov", "can drive", "vehicles"),
+        frozenset({"authorisation to drive", "authorization to drive", "class of vehicle", "cov"}),
+    ),
+    (
+        ("issuing authority", "authority issued", "issued by", "rto"),
+        frozenset({"issuing authority", "licencing authority", "licensing authority", "rto"}),
+    ),
+)
 _LICENCE_SCOPE_TERMS = {
     "address",
     "authority",
@@ -258,18 +314,52 @@ _AUTHORITY_RETRIEVAL_TERMS = frozenset({"authority", "issuing", "rto"})
 _EXPIRY_RETRIEVAL_TERMS = frozenset(
     {"expiry", "expiration", "expire", "expires", "valid", "validity"}
 )
-_LICENCE_NUMBER_RETRIEVAL_TERMS = frozenset(
-    {"licence", "license", "dl", "number", "no"}
-)
+_LICENCE_NUMBER_RETRIEVAL_TERMS = frozenset({"licence", "license", "dl", "number", "no"})
 _HOLDER_NAME_RETRIEVAL_TERMS = frozenset({"holder", "name", "person"})
+_SPECIFIC_NON_NAME_FIELD_TERMS = frozenset(
+    {
+        "address",
+        "authority",
+        "authorisation",
+        "authorization",
+        "birth",
+        "category",
+        "categories",
+        "class",
+        "classes",
+        "condition",
+        "conditions",
+        "cov",
+        "dob",
+        "endorsement",
+        "endorsements",
+        "expiry",
+        "expiration",
+        "issue",
+        "issued",
+        "occupation",
+        "postal",
+        "postcode",
+        "profession",
+        "residence",
+        "residential",
+        "restriction",
+        "restrictions",
+        "rto",
+        "valid",
+        "validity",
+        "vehicle",
+        "vehicles",
+        "vision",
+        "zip",
+    }
+)
 _SUMMARY_TERMS = frozenset({"summary", "summarise", "summarize", "overview", "profile"})
 _SUMMARY_SCOPE_TERMS = frozenset({"document", "holder", "licence", "license", "person"})
 _RETRIEVAL_SYNONYM_GROUPS: tuple[frozenset[str], ...] = (
     frozenset({"birth", "dob", "born"}),
     _EXPIRY_RETRIEVAL_TERMS,
-    frozenset(
-        {"vehicle", "vehicles", "class", "classes", "category", "categories", "cov"}
-    ),
+    frozenset({"vehicle", "vehicles", "class", "classes", "category", "categories", "cov"}),
     frozenset(
         {
             "endorsement",
@@ -283,7 +373,7 @@ _RETRIEVAL_SYNONYM_GROUPS: tuple[frozenset[str], ...] = (
     frozenset({"vision", "eyesight", "corrective", "lens", "lenses"}),
 )
 _RRF_RANK_CONSTANT = 60
-_MAX_ADJACENT_BLOCK_DISTANCE = 2
+_MAX_ADJACENT_BLOCK_DISTANCE = 3
 
 
 class QuestionService:
@@ -610,6 +700,7 @@ class QuestionService:
             return self._unavailable(document_id, question)
 
         reading_index = self._evidence_index(reading)
+        heading_index = self._direct_heading_index(reading, question)
         citations: list[QuestionCitation] = []
         seen: set[str] = set()
         for field in present:
@@ -623,6 +714,17 @@ class QuestionService:
                     or reading_index[block_id] != evidence
                 ):
                     return self._unavailable(document_id, question)
+                heading = heading_index.get(block_id)
+                if heading is not None:
+                    heading_id = self._required_block_id(heading)
+                    if heading_id not in seen:
+                        seen.add(heading_id)
+                        citations.append(
+                            QuestionCitation(
+                                block_id=heading_id,
+                                page_number=heading.page_number,
+                            )
+                        )
                 if block_id not in seen:
                     seen.add(block_id)
                     citations.append(
@@ -639,6 +741,58 @@ class QuestionService:
             citations=tuple(citations),
             created_at=self.now_provider(),
         )
+
+    @staticmethod
+    def _direct_heading_index(
+        reading: ReadingResult,
+        question: str,
+    ) -> dict[str, Evidence]:
+        """Map value blocks to verified same-page standalone field headings."""
+        normalized_question = QuestionService._normalize_phrase(question)
+        allowed_headings: set[str] = set()
+        for question_phrases, heading_aliases in _DIRECT_HEADING_GROUPS:
+            if any(
+                QuestionService._contains_phrase(normalized_question, phrase)
+                for phrase in question_phrases
+            ):
+                allowed_headings.update(heading_aliases)
+        for question_aliases, label_aliases in _DYNAMIC_FACT_ALIASES:
+            if any(
+                QuestionService._contains_phrase(normalized_question, alias)
+                for alias in question_aliases
+            ):
+                allowed_headings.update(label_aliases)
+
+        headings_by_value_id: dict[str, Evidence] = {}
+        for page in reading.pages:
+            for block_order in range(1, len(page.blocks)):
+                heading = page.blocks[block_order - 1]
+                normalized_heading = QuestionService._standalone_heading(heading.source_text)
+                if normalized_heading is None:
+                    continue
+                if normalized_heading not in allowed_headings:
+                    continue
+                value_id = page.blocks[block_order].block_id
+                if value_id is None:
+                    raise QuestionService._provider_error()
+                headings_by_value_id[value_id] = heading
+        return headings_by_value_id
+
+    @staticmethod
+    def _standalone_heading(source_text: str) -> str | None:
+        """Accept short label-only OCR blocks and reject values or prose."""
+        stripped = source_text.strip()
+        if not stripped or len(stripped) > 80 or any(character.isdigit() for character in stripped):
+            return None
+        if any(mark in stripped for mark in (".", "?", "!", ";")):
+            return None
+        label, separator, remainder = stripped.partition(":")
+        if separator and remainder.strip():
+            return None
+        normalized = QuestionService._normalize_phrase(label)
+        if not normalized or len(normalized.split()) > _MAX_DIRECT_LABEL_TERMS:
+            return None
+        return normalized
 
     def _summary_result(
         self,
@@ -873,10 +1027,7 @@ class QuestionService:
                     if adjacent_id is None:
                         raise self._provider_error()
                     adjacent_orders.append(global_order_by_id[adjacent_id])
-        return {
-            order: rank
-            for rank, order in enumerate(dict.fromkeys(adjacent_orders), start=1)
-        }
+        return {order: rank for rank, order in enumerate(dict.fromkeys(adjacent_orders), start=1)}
 
     @staticmethod
     def _adjacent_section_terms(value: str) -> frozenset[str]:
@@ -921,7 +1072,8 @@ class QuestionService:
     def _expanded_retrieval_terms(value: str) -> set[str]:
         """Expand a small licence-domain vocabulary before deterministic lexical ranking."""
         normalized = QuestionService._normalize_phrase(value)
-        terms = QuestionService._terms(value) - _STOP_WORDS
+        raw_terms = QuestionService._terms(value)
+        terms = raw_terms - _STOP_WORDS
         expanded = set(terms)
         for group in _RETRIEVAL_SYNONYM_GROUPS:
             if terms & group:
@@ -929,7 +1081,7 @@ class QuestionService:
 
         # Subject words must not turn an address or date request into a name
         # lookup, and mentioning a licence must not favor its number.
-        if terms & {"number", "no"} and terms & {"licence", "license", "dl"}:
+        if raw_terms & {"number", "no"} and raw_terms & {"licence", "license", "dl"}:
             expanded.update(_LICENCE_NUMBER_RETRIEVAL_TERMS)
         if "name" in terms:
             expanded.update(_HOLDER_NAME_RETRIEVAL_TERMS)
@@ -944,11 +1096,17 @@ class QuestionService:
             expanded.update(_ADDRESS_RETRIEVAL_TERMS)
         if "live" in terms and terms & {"holder", "person", "resident"}:
             expanded.update(_ADDRESS_RETRIEVAL_TERMS)
-        if any(
+        if ("until" in terms and terms & {"use", "used", "usable", "valid"}) or any(
             QuestionService._contains_phrase(normalized, phrase)
-            for phrase in ("until what date", "date can", "date is valid", "how long is valid")
+            for phrase in ("date is valid", "how long is valid", "how long valid")
         ):
             expanded.update(_EXPIRY_RETRIEVAL_TERMS)
+        has_explicit_name_intent = "name" in raw_terms or any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in ("who is holder", "who is the holder", "who is licence holder")
+        )
+        if expanded & _SPECIFIC_NON_NAME_FIELD_TERMS and not has_explicit_name_intent:
+            expanded.difference_update({"holder", "person"})
         return expanded
 
     def _bounded_index_evidence(self, reading: ReadingResult) -> tuple[Evidence, ...]:

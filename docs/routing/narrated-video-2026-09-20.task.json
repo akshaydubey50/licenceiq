@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The configured account's TTS access and the locally available MP4 muxing capability are not yet verified.",
+    "scope": "The work combines an existing five-minute video, external speech generation, audio duration handling, MP4 muxing, and playback validation.",
+    "reasoning": "The narration must match visible product states without exposing credentials or replacing real screen-recorded frames.",
+    "verification": "Acceptance depends on a playable MP4 with both a decodable video stream and a synchronized audio stream."
+  },
+  "risk": "medium",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

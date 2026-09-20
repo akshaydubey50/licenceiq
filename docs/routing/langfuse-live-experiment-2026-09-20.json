@@ -1,0 +1,83 @@
+{
+  "work_unit": "Real fictional-sample evaluation adapter and hosted Langfuse experiment",
+  "date": "2026-09-20",
+  "assessment": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2,
+    "total": 7,
+    "risk": "high",
+    "evidence_file": "langfuse-live-experiment-2026-09-20.helper-input.json"
+  },
+  "recommendation": {
+    "tier": "strong",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  },
+  "dispatch": {
+    "mode": "independent worker plus coordinator integration",
+    "worker": "/root/fictional_eval_pipeline",
+    "actual_model": "gpt-5.6-sol",
+    "actual_reasoning_effort": "high",
+    "history": "fresh self-contained handoff",
+    "owned_files": [
+      "backend/scripts/fictional_eval_pipeline.py",
+      "backend/tests/test_fictional_eval_pipeline.py"
+    ],
+    "coordinator_owned_work": [
+      "experiment runner and tests",
+      "shared metric functions and regression tests",
+      "documentation and routing record",
+      "integration review, live execution and read-back verification"
+    ],
+    "coordinator_model_switched": false,
+    "nested_delegation": false
+  },
+  "outcome": {
+    "status": "accepted evaluation implementation; application-quality failures measured",
+    "attempts_used": 1,
+    "model_escalations_used": 0,
+    "live_model_runs": 1,
+    "checks": [
+      "40 focused tests passed across adapter, scorer, runner and dataset uploader",
+      "Ruff check and format check passed for eight script/test files",
+      "mypy --explicit-package-bases --follow-imports=silent passed for four scripts",
+      "Dry run validated all ten reviewed cases without network access",
+      "Preflight preserved OpenAI models/key and guardrails while isolating storage and disabling application tracing",
+      "Live OpenAI run completed all ten cases with zero provider/runtime errors",
+      "Langfuse CLI read-back matched ten outputs, 26 item scores and six aggregate scores"
+    ],
+    "environment_findings": [
+      "Run pytest as python -m pytest so the backend scripts namespace resolves",
+      "Mypy requires explicit package bases for these namespace script imports",
+      "Following all imports exposes an existing unrelated app/observability.py:257 protocol mismatch; production code was not changed",
+      "Network execution used approved sandbox escalation; no credentials were printed",
+      "Langfuse experiment output is JSON text and must be decoded before local comparison"
+    ],
+    "integration_review": [
+      "Async SDK task offloads synchronous application services to a thread to avoid nested event loops",
+      "Expected answers are only available to the evaluator, never the application task",
+      "Two hash-pinned fictional images use temporary storage, cached preparation and cleanup",
+      "Remote dataset edits and missing SDK scores are rejected",
+      "Multi-line source coverage and normalized date comparison are versioned as evaluator v0.2"
+    ],
+    "experiment_id": "258e5cdd-c96c-47cb-b8b7-f4598bb13891",
+    "run_name": "licenceiq-gold-v0-20260920T083734177041Z",
+    "metrics": {
+      "evidence_recall_at_3": 0.25,
+      "evidence_recall_at_5": 0.5,
+      "mean_reciprocal_rank": 0.1458,
+      "citation_support_rate": 0.375,
+      "abstention_accuracy": 1.0,
+      "direct_path_accuracy": 0.75
+    },
+    "limitations": [
+      "Five answerable cases failed expected content/citation checks and remain visible in the baseline",
+      "The experiment is a service benchmark, not a browser, auth, database or MinIO test",
+      "Metrics are deterministic reference checks on two samples, not an LLM judge or production accuracy claim",
+      "Provider token usage and cost are unavailable in the current contracts",
+      "No production service edits, commit, push or deployment were performed"
+    ]
+  }
+}

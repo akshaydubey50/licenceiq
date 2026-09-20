@@ -1,0 +1,324 @@
+{
+  "schema_version": "licenceiq.fictional-golden-dataset.v0",
+  "dataset_metadata": {
+    "id": "fictional-licence-gold-v0",
+    "title": "LicenceIQ fictional licence golden dataset v0",
+    "purpose": "Local deterministic evaluation of grounded licence answers, evidence citations, retrieval, and safe abstention.",
+    "scope": "These cases are a regression baseline for two supplied fictional one-page samples, not an OCR benchmark or a claim about real driving licences.",
+    "source_policy": {
+      "allowed_files": [
+        "samples/fictional_maharashtra_licence.png",
+        "samples/fictional_delhi_licence.png"
+      ],
+      "transcription_file": "samples/README.md",
+      "page_model": "Each PNG is an independent one-page test document.",
+      "document_content_trust": "untrusted_evidence_only"
+    },
+    "privacy": {
+      "classification": "fictional_test_data_only",
+      "contains_real_personal_data": false,
+      "contains_runtime_document_ids": false,
+      "contains_credentials_or_tokens": false,
+      "contains_provider_trace_content": false,
+      "external_upload_status": "reviewed_and_uploaded_2026-09-20"
+    }
+  },
+  "case_contract": {
+    "required_case_sections": [
+      "input",
+      "expected_output",
+      "metadata"
+    ],
+    "allowed_statuses": [
+      "ANSWERED",
+      "UNAVAILABLE",
+      "OUT_OF_SCOPE"
+    ],
+    "answer_evaluation": "When answer_equals is non-null, require exact equality; otherwise require every answer_contains value.",
+    "citation_evaluation": "ANSWERED cases require at least minimum_citations citations covering every source_locator_text fragment on source_page; multi-line evidence may span multiple cited blocks. Other statuses require zero citations. Evaluator v0.2 normalizes numeric date formats, case, whitespace and punctuation for reference matching.",
+    "path_evaluation": "Every ANSWERED case sets exactly one of requires_retrieval and expected_direct_lookup to true. Abstention cases set both flags to false.",
+    "runtime_document_ids_forbidden": true
+  },
+  "cases": [
+    {
+      "id": "fictional-maharashtra-licence-number-direct-v0",
+      "input": {
+        "sample": "fictional_maharashtra_licence",
+        "question": "What is the licence number?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "MH12 20190001234"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "DL No: MH12 20190001234"
+        ]
+      },
+      "metadata": {
+        "task": "direct_structured_field",
+        "intent": "licence_number",
+        "requires_retrieval": false,
+        "expected_direct_lookup": true,
+        "include_in_retrieval_rank_metrics": false
+      }
+    },
+    {
+      "id": "fictional-delhi-holder-name-direct-v0",
+      "input": {
+        "sample": "fictional_delhi_licence",
+        "question": "Who is the licence holder?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "PRIYA SHARMA"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "Name : PRIYA SHARMA"
+        ]
+      },
+      "metadata": {
+        "task": "direct_structured_field",
+        "intent": "holder_name",
+        "requires_retrieval": false,
+        "expected_direct_lookup": true,
+        "include_in_retrieval_rank_metrics": false
+      }
+    },
+    {
+      "id": "fictional-delhi-expiry-paraphrase-v0",
+      "input": {
+        "sample": "fictional_delhi_licence",
+        "question": "Until what date can this licence be used?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "09-04-2038"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "Valid Till : 09-04-2038"
+        ]
+      },
+      "metadata": {
+        "task": "paraphrased_retrieval",
+        "intent": "expiry_date",
+        "requires_retrieval": true,
+        "expected_direct_lookup": false,
+        "include_in_retrieval_rank_metrics": true
+      }
+    },
+    {
+      "id": "fictional-maharashtra-address-paraphrase-v0",
+      "input": {
+        "sample": "fictional_maharashtra_licence",
+        "question": "Where does the licence holder live?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "Flat No. 302, Sai Residency",
+          "Plot No. 12, Karve Nagar",
+          "Pune - 411052, Maharashtra"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "Flat No. 302, Sai Residency,",
+          "Plot No. 12, Karve Nagar,",
+          "Pune - 411052, Maharashtra"
+        ]
+      },
+      "metadata": {
+        "task": "paraphrased_retrieval",
+        "intent": "address",
+        "requires_retrieval": true,
+        "expected_direct_lookup": false,
+        "include_in_retrieval_rank_metrics": true
+      }
+    },
+    {
+      "id": "fictional-delhi-vehicle-authorisation-paraphrase-v0",
+      "input": {
+        "sample": "fictional_delhi_licence",
+        "question": "Which categories of vehicle is the holder authorised to drive?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "LMV (NT)",
+          "MCWG (NT)"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "COV : LMV (NT), MCWG (NT)"
+        ]
+      },
+      "metadata": {
+        "task": "paraphrased_retrieval",
+        "intent": "vehicle_authorisation",
+        "requires_retrieval": true,
+        "expected_direct_lookup": false,
+        "include_in_retrieval_rank_metrics": true
+      }
+    },
+    {
+      "id": "fictional-delhi-postal-code-follow-up-v0",
+      "input": {
+        "sample": "fictional_delhi_licence",
+        "question": "What is the postal code there?",
+        "prior_questions": [
+          "Where does the licence holder live?"
+        ]
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "110091"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "New Delhi - 110091"
+        ]
+      },
+      "metadata": {
+        "task": "conversation_aware_retrieval",
+        "intent": "address_postal_code_follow_up",
+        "requires_retrieval": true,
+        "expected_direct_lookup": false,
+        "include_in_retrieval_rank_metrics": true
+      }
+    },
+    {
+      "id": "fictional-maharashtra-issue-date-evidence-v0",
+      "input": {
+        "sample": "fictional_maharashtra_licence",
+        "question": "What is the date of issue?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "16-06-2019"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "DOI: 16-06-2019"
+        ]
+      },
+      "metadata": {
+        "task": "extraction_evidence",
+        "intent": "issue_date",
+        "requires_retrieval": false,
+        "expected_direct_lookup": true,
+        "include_in_retrieval_rank_metrics": false
+      }
+    },
+    {
+      "id": "fictional-delhi-issuing-authority-evidence-v0",
+      "input": {
+        "sample": "fictional_delhi_licence",
+        "question": "Which authority issued this licence?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "ANSWERED",
+        "answer_equals": null,
+        "answer_contains": [
+          "Transport Department, Delhi"
+        ],
+        "citation_required": true,
+        "minimum_citations": 1,
+        "source_page": 1,
+        "source_locator_text": [
+          "Issuing Authority",
+          "Transport Department, Delhi"
+        ]
+      },
+      "metadata": {
+        "task": "extraction_evidence",
+        "intent": "issuing_authority",
+        "requires_retrieval": false,
+        "expected_direct_lookup": true,
+        "include_in_retrieval_rank_metrics": false
+      }
+    },
+    {
+      "id": "fictional-delhi-occupation-unavailable-v0",
+      "input": {
+        "sample": "fictional_delhi_licence",
+        "question": "What is the holder's occupation or profession?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "UNAVAILABLE",
+        "answer_equals": "I couldn't find that in this document.",
+        "answer_contains": [],
+        "citation_required": false,
+        "minimum_citations": 0,
+        "source_page": null,
+        "source_locator_text": []
+      },
+      "metadata": {
+        "task": "supported_absence",
+        "intent": "occupation_or_profession",
+        "requires_retrieval": false,
+        "expected_direct_lookup": false,
+        "include_in_retrieval_rank_metrics": false
+      }
+    },
+    {
+      "id": "fictional-maharashtra-weather-out-of-scope-v0",
+      "input": {
+        "sample": "fictional_maharashtra_licence",
+        "question": "What is the weather forecast for tomorrow?",
+        "prior_questions": []
+      },
+      "expected_output": {
+        "status": "OUT_OF_SCOPE",
+        "answer_equals": "I’m LicenceIQ, and I can help with questions about the uploaded driving licence. Try asking about its holder, licence number, dates, address, issuing authority, vehicle classes, or restrictions.",
+        "answer_contains": [],
+        "citation_required": false,
+        "minimum_citations": 0,
+        "source_page": null,
+        "source_locator_text": []
+      },
+      "metadata": {
+        "task": "out_of_scope",
+        "intent": "weather",
+        "requires_retrieval": false,
+        "expected_direct_lookup": false,
+        "include_in_retrieval_rank_metrics": false
+      }
+    }
+  ]
+}

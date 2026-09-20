@@ -1,0 +1,61 @@
+{
+  "work_unit": "fictional question-suite v1 local golden drafts",
+  "date": "2026-09-20",
+  "assessment": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2,
+    "total": 8,
+    "risk": "high",
+    "evidence": {
+      "uncertainty": "The requested question categories had to be mapped to the current Q&A and NeMo guardrail contracts.",
+      "scope": "Five datasets, a common local contract, offline structural tests, and the Langfuse publication boundary must agree.",
+      "reasoning": "Expected outcomes differ across grounded answers, unsupported on-topic questions, off-topic questions, and prompt-control attempts.",
+      "verification": "The data needed offline schema and coverage checks plus focused guardrail regression tests without provider or Langfuse calls."
+    }
+  },
+  "route": {
+    "recommendation": {
+      "tier": "strong",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high"
+    },
+    "actual_dispatch": {
+      "worker": "/root/golden_suite_guardrail_review",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "role": "read-only guardrail contract review",
+      "attempt": 1
+    },
+    "coordinator_execution": {
+      "role": "local data-suite authoring and integration",
+      "attempt": 1
+    },
+    "escalations_used": 0
+  },
+  "outcome": {
+    "status": "local_draft_complete_pending_human_review",
+    "datasets": 5,
+    "cases": 22,
+    "coverage": [
+      "direct happy-path questions",
+      "semantic and conversation-context questions",
+      "neutral unsupported on-topic questions",
+      "clearly off-topic questions",
+      "prompt-injection and jailbreak attempts"
+    ],
+    "checks": [
+      "backend: uv run pytest tests/test_fictional_question_suites.py (3 passed)",
+      "backend: uv run ruff check tests/test_fictional_question_suites.py --no-cache (passed)",
+      "backend: uv run ruff format --check tests/test_fictional_question_suites.py (passed)",
+      "backend: uv run mypy tests/test_fictional_question_suites.py (passed)",
+      "backend: .venv\\Scripts\\python.exe -m pytest tests/test_questions.py -q -p no:cacheprovider -k guardrail-focused-expression (14 passed)"
+    ],
+    "limitations": [
+      "The new suite is local only and was not uploaded to Langfuse.",
+      "Expected outputs are review drafts and need human approval before a hosted dataset is created.",
+      "The dataset validates Q&A and input safety behaviour; it does not measure OCR quality or browser workflow behaviour."
+    ]
+  }
+}

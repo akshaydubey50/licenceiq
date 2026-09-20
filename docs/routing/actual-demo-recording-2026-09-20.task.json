@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 1,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The authenticated, provider-backed flows require live selector and timing verification.",
+    "scope": "Guest, registration, login, upload, reading, review, Q&A, evidence, and logout span multiple services.",
+    "reasoning": "Playwright recording follows an established pattern but must maintain isolated auth state and wait for durable results.",
+    "verification": "Acceptance depends on a playable video and successful live document workflow, not unit tests alone."
+  },
+  "risk": "medium",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

@@ -1,0 +1,72 @@
+{
+  "work_unit": "Run the reviewed LicenceIQ fictional v0 evaluation in Langfuse",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "total": 6,
+    "risk": "high",
+    "evidence": {
+      "uncertainty": "Remote dataset state and provider configuration required a guarded preflight.",
+      "scope": "The existing runner uploads only ten reviewed fictional v0 cases and runs its isolated evaluation adapter.",
+      "reasoning": "The runner validates hosted parity, records provider failures, and must not expose credentials or real documents.",
+      "verification": "Completion requires an uploaded dataset, a completed Langfuse run, metrics, an experiment URL, and a local report."
+    }
+  },
+  "route": {
+    "recommendation": {
+      "tier": "strong",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high"
+    },
+    "dispatch": [
+      {
+        "worker": "/root/langfuse_runner_compatibility",
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "high",
+        "scope": "Read-only v1 compatibility assessment",
+        "outcome": "accepted; established that v1 cannot be run through the v0 uploader or scorer"
+      },
+      {
+        "owner": "coordinator",
+        "scope": "Preflight, fictional v0 upsert, and live experiment execution",
+        "outcome": "accepted"
+      }
+    ],
+    "implementation_attempts_used": 0,
+    "model_escalations_used": 0
+  },
+  "result": {
+    "dataset": "licenceiq/fictional-gold-v0",
+    "uploaded_items": 10,
+    "run_name": "licenceiq-gold-v0-20260920-0650z",
+    "case_count": 10,
+    "error_count": 0,
+    "metrics": {
+      "evidence_recall_at_3": 0.9167,
+      "evidence_recall_at_5": 1.0,
+      "mean_reciprocal_rank": 0.7083,
+      "citation_support_rate": 1.0,
+      "abstention_accuracy": 1.0,
+      "direct_path_accuracy": 1.0
+    },
+    "experiment_url": "https://jp.cloud.langfuse.com/project/cmu9id1yp0006ad0csoyxoff3/datasets/cmu9j6kd0003ead0d8fnfytg5/runs/bde1b4b1-96ae-4473-aeb2-b3b6a1782cd7",
+    "local_report": ".runtime/evaluations/licenceiq-gold-v0-20260920-0650z.json"
+  },
+  "checks": [
+    "v0 uploader dry-run validated ten local fictional items",
+    "19 focused uploader and experiment tests passed",
+    "Langfuse auth check passed and hosted dataset reported ten items",
+    "one isolated fictional sample question returned ANSWERED with one citation",
+    "completed live experiment wrote the local report and returned zero errors"
+  ],
+  "limitations": [
+    "The new five local v1 suites were not uploaded or run because their expected application-error contract is incompatible with the fixed v0 uploader and scorer.",
+    "A separate v1 uploader/runner must preserve HTTP status and score expected QUESTION_BLOCKED outcomes before those 22 cases can be evaluated in Langfuse."
+  ],
+  "status": "complete"
+}

@@ -1,0 +1,47 @@
+{
+  "work_unit": "Refresh the LicenceIQ reviewer README against the current application and assessment brief",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 2,
+      "reasoning": 1,
+      "verification": 1
+    },
+    "total": 5,
+    "risk": "low",
+    "evidence": "The work updates a single reviewer-facing document, but it must align current application behavior, evaluation evidence, local setup, and stated limitations."
+  },
+  "route": {
+    "recommendation": {
+      "tier": "balanced",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "medium"
+    },
+    "dispatch": {
+      "worker": "/root/readme_freshness_review",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "scope": "Read-only freshness and claim review",
+      "outcome": "accepted; coordinator applied the documented corrections"
+    },
+    "implementation": {
+      "owner": "coordinator",
+      "attempts_used": 1,
+      "model_escalations_used": 0
+    }
+  },
+  "changes": [
+    "Replaced the phase-history README with a concise assessment-oriented guide.",
+    "Added current two-licence splitting, query rewriting, signed-user chat, OpenAI data boundary, and privacy-safe tracing details.",
+    "Recorded the latest reviewed fictional v0 evaluation metrics and the unpublished 22-case v1 boundary.",
+    "Distinguished the existing 5:18 local recording from the refreshed 6:30-7:00 recording runbook.",
+    "Documented known typing, OCR-highlight, guardrail, retention, and deployment limitations."
+  ],
+  "checks": [
+    "git diff --check -- README.md passed",
+    "15 local Markdown link targets resolved with zero missing targets",
+    "Manual review confirmed the assessment-required sections: technology stack, architecture, setup, AI/LLM approach, technical decisions, limitations, and AI development tools"
+  ],
+  "status": "complete"
+}

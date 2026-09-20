@@ -1,0 +1,35 @@
+{
+  "schema_version": "licenceiq.fictional-question-suite.v1",
+  "dataset": {
+    "id": "fictional-neutral-unsupported-v1",
+    "status": "LOCAL_DRAFT_REVIEW_REQUIRED",
+    "purpose": "Verify that LicenceIQ stays helpful but does not invent licence-related facts that are absent.",
+    "source_policy": "fictional_samples_only"
+  },
+  "cases": [
+    {
+      "id": "maharashtra-occupation-absent-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "What is the holder's occupation?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "UNAVAILABLE", "answer_equals": "I couldn't find that in this document.", "citation_required": false},
+      "metadata": {"category": "neutral_unsupported", "intent": "occupation", "expected_path": "safe_abstention"}
+    },
+    {
+      "id": "delhi-eye-colour-absent-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "What is the holder's eye colour?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "UNAVAILABLE", "answer_equals": "I couldn't find that in this document.", "citation_required": false},
+      "metadata": {"category": "neutral_unsupported", "intent": "eye_colour", "expected_path": "safe_abstention"}
+    },
+    {
+      "id": "maharashtra-phone-number-absent-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "What phone number is listed for the holder?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "UNAVAILABLE", "answer_equals": "I couldn't find that in this document.", "citation_required": false},
+      "metadata": {"category": "neutral_unsupported", "intent": "phone_number", "expected_path": "safe_abstention"}
+    },
+    {
+      "id": "delhi-emergency-contact-absent-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "Who is the emergency contact for the licence holder?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "UNAVAILABLE", "answer_equals": "I couldn't find that in this document.", "citation_required": false},
+      "metadata": {"category": "neutral_unsupported", "intent": "emergency_contact", "expected_path": "safe_abstention"}
+    }
+  ]
+}

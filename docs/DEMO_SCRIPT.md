@@ -1,147 +1,64 @@
-# LicenceIQ demo script (about 7 minutes)
+# LicenceIQ live-demo narration
 
-This script demonstrates the local assessment build using one supplied fictional
-licence crop. It is a guided product walkthrough, not an accuracy benchmark or
-a claim about real driving licences.
+**Recorded video:** `artifacts/recordings/live-demo-20260920T095515Z/LicenceIQ-Live-Demo-5m13.mp4`
+**Duration:** 5 minutes 13 seconds
+**Format:** spoken voice-over on the real browser recording. No slides, generated product screens, or real personal data.
 
-## Before recording
+## Delivery notes
 
-- Start the local services from the repository root as described in the
-  [README](../README.md#run-locally). Keep the backend and frontend terminals
-  visible only if the recording needs to show local setup; do not show `.env`
-  files, provider keys, or terminal output containing private information.
-- Open `http://127.0.0.1:3000` in a clean browser window and confirm the
-  development header says **Backend connected**. Close unrelated tabs,
-  notifications, downloads, and password-manager pop-ups.
-- Use one individual crop only: `samples/fictional_delhi_licence.png` or
-  `samples/fictional_maharashtra_licence.png`. Do not upload the composite
-  image, because it contains two documents. The images are fictional samples;
-  their visible text is not production data or proof of OCR accuracy. See
-  [sample notes](../samples/README.md).
-- Record at a readable zoom and pause briefly after each state change. If the
-  OCR/AI key is unavailable, restore the local setup before recording rather
-  than substituting screenshots or invented results.
+- Start narration when the LicenceIQ landing page appears. Speak at a calm pace and pause while the live OCR or question response is processing.
+- The video uses only the bundled fictional Maharashtra licence. It includes a disposable local demonstration account.
+- Do not read the fictional licence number, address, date of birth, or any other document value aloud. Point out the source evidence instead.
+- The last screen holds the successful sign-out confirmation. Use it for the closing sentence, then let the recording end naturally.
 
-## Suggested narration and actions
+## Narration aligned to the video
 
-### 0:00–0:35 — Introduce the scope
+### 0:00–0:18 — Introduce the application
 
-**Say:** “LicenceIQ is a local workspace for reading, reviewing, and
-understanding one driving-licence document. This recording uses a supplied
-fictional sample. It is not an authenticity check and it does not demonstrate
-real-person data.”
+> Hi, I’m Akshay. This is LicenceIQ, an AI-powered document-intelligence application for driving licences. The workflow is simple: upload one document, read it, extract structured information, let a person review it, and ask questions that stay grounded in that document. This recording uses only the fictional sample supplied for the assessment.
 
-Show the empty local app and the **Backend connected** indicator. Mention that
-the app accepts PDF, PNG, JPG, and JPEG files, and that the workflow keeps the
-active document private to this browser session.
+### 0:18–0:40 — Guest option
 
-### 0:35–1:20 — Upload and preview one fictional document
+> The landing page gives two access paths. A guest can try a temporary workspace without registering, while a signed-in user works in a private account workspace. I am opening and leaving the guest path here to demonstrate that the option is available. For the rest of the recording, I will use an account so the document and review history are tied to one user.
 
-Choose one of the individual files above and select **Upload document**. Wait
-for the private preview and upload state to finish.
+### 0:40–1:22 — Sign-up, sign-out, and sign-in
 
-**Say:** “I am uploading one individual fictional crop. The app validates the
-file and shows a private preview; it does not use a public file link.”
+> I create a local demonstration account, which takes me directly into an authenticated session. The account flow uses a server-side Argon2 password hash and a short-lived JWT held only in browser memory. I then sign out. The application revokes the server session before returning to the sign-in page. Finally, I sign in again to show the normal private-workspace flow.
 
-Do not read personal-looking values aloud or enlarge them unnecessarily. Point
-out only that the preview is the source document being reviewed.
+### 1:22–1:55 — Upload the document
 
-### 1:20–2:10 — Read and extract source-backed fields
+> I now select the fictional driving-licence image and upload it. The frontend accepts PDF, PNG, and JPG files up to the configured size limit. The backend validates the file before storing the original document privately in MinIO-compatible object storage. Document metadata, extraction evidence, review records, user details, sessions, and retrieval embeddings are persisted in PostgreSQL with pgvector.
 
-Select **Read document** and wait for the reading/extraction view.
+### 1:55–2:32 — Read, OCR, and extract
 
-**Say:** “Reading is an explicit action because scanned images can be sent to
-the configured OCR provider. LicenceIQ then presents extracted fields with
-their source evidence, rather than treating model output as authoritative.”
+> Reading is an explicit step, so the user controls when document content is processed. For an image such as this one, LicenceIQ uses the configured OpenAI vision service to read the page. It then extracts the full name, licence number, dates, address, vehicle classes, issuing authority, and any other relevant fields. The application keeps page-level reading evidence alongside the structured result, instead of treating an AI response as unquestioned truth.
 
-Show the extraction and, in development, open the raw-text inspector if it is
-available. Compare one displayed field with the matching text in the preview.
-Avoid calling this a correctness score; say that visual review remains part of
-the workflow.
+### 2:32–3:02 — Verify the source
 
-### 2:10–3:05 — Review, correct, and save
+> Each extracted field includes a source control. When I select it, the application focuses the corresponding page and shows the evidence excerpt that supports the field. This gives the reviewer a direct way to compare the form with the uploaded licence.
 
-Choose a field that can be safely changed for the demonstration, make a clearly
-described reviewer correction, and select **Save review**. Confirm the saved
-state, then show that the original extracted value and its source evidence are
-still visible separately.
+### 3:02–3:30 — Review and save a correction
 
-**Say:** “A reviewer correction is stored as a reviewer value. It does not
-overwrite the extracted source value or turn the correction into document
-evidence.”
+> The form is editable. I make a small formatting correction and save it. LicenceIQ deliberately keeps the reviewer’s value separate from the original model extraction and its source evidence. That separation makes it clear which values came from the document and which values were changed by a person.
 
-Do not use the correction as the basis for a later document-answer claim.
+### 3:30–4:00 — Direct question and citation
 
-### 3:05–4:05 — Ask a direct question
+> Next, I ask a direct question: “What is the driving licence number?” The answer is returned with a source reference. Selecting the reference opens the related evidence in the document preview, so an answer can be checked immediately rather than trusted blindly.
 
-In **Ask this document**, ask: “What is the licence number?”
+### 4:00–4:32 — Broader grounded question
 
-Show the answer and its citation/source control.
+> I now ask a broader question: “What vehicles is this person authorised to drive, and what restrictions apply?” For these questions, LicenceIQ searches evidence from the active document only. It combines lexical matching with semantic retrieval using pgvector embeddings, then sends the selected evidence to the answer model. The result must remain supported by source evidence from this licence.
 
-**Say:** “This is a direct field question. The answer comes from the immutable,
-evidence-backed extraction for this active document, rather than from the
-reviewer edit.”
+### 4:32–4:52 — Safe unavailable response
 
-### 4:05–5:05 — Ask a paraphrased question
+> Finally, I ask for the holder’s passport number. That information is not present in a driving licence, so the correct behaviour is to say it could not be found in the document. The application does not invent a value or add a citation where the evidence does not exist.
 
-Ask a broader paraphrased question such as: “Until when is this document valid
-to drive?”
+### 4:52–5:13 — Logout and close
 
-Show the grounded answer and its citations.
+> I end by signing out, which safely revokes the local session. LicenceIQ demonstrates the full assessment workflow: secure document upload, OCR and structured extraction, editable human review, source traceability, grounded document Q-and-A, and clear abstention when information is unavailable. The project was developed with OpenAI Codex as an AI-assisted development tool. Thank you for watching.
 
-**Say:** “For broader phrasing, the app searches a bounded temporary index of
-this document’s reading blocks, then returns an answer only when it can cite
-the selected source evidence. The first broader question can take longer while
-that temporary index is prepared.”
+## Accuracy guardrails for the presenter
 
-### 5:05–5:40 — Demonstrate abstention
-
-Ask: “What is the holder’s passport number?”
-
-Show the unavailable response.
-
-**Say:** “That information is not in this document, so the system abstains
-instead of inventing an answer.”
-
-### 5:40–6:20 — Open the cited source
-
-Select the source control beside an extracted field or an answered question.
-Show the preview’s focused-source state and the stored evidence excerpt.
-
-**Say:** “The source control is limited to the active document and exposes the
-stored excerpt used to support the value. It does not claim pixel-perfect OCR
-highlighting, because OCR geometry is usually unavailable.”
-
-### 6:20–6:45 — Remove the document
-
-Select **Remove document** and wait for the empty workspace state.
-
-**Say:** “Removal clears the stored document, reading, extraction, reviewer
-values, and temporary semantic index for this local demo document.”
-
-### 6:45–7:30 — Explain architecture and current limits
-
-Use the README’s architecture diagram or briefly show the repository layout.
-
-**Say:** “The browser talks to a local Next.js interface and FastAPI service.
-The service validates uploads, keeps temporary private document state, retains
-source evidence, and keeps reviewer corrections separate. Native PDF text is
-read locally; scanned pages can use the configured OpenAI OCR and question
-providers. Broader questions are restricted to the active document’s bounded
-temporary retrieval state.”
-
-Close with the main limits: this is a localhost demo; it has no user accounts,
-public deployment, malware scanning, authenticity verification, or broad OCR
-accuracy benchmark. Source navigation shows an excerpt and focused-page state,
-not a guarantee of pixel-exact highlighting. Refer reviewers to the
-[README](../README.md#known-limitations) for the complete limitations.
-
-## Recording recovery notes
-
-- If a read or broader question fails, do not edit a response or narrate a
-  result that did not appear. Resolve the local provider/configuration issue and
-  restart the affected portion of the recording.
-- If removal fails, leave the visible error and retry only after explaining
-  that the document remains visible until server-side removal succeeds.
-- Do not show `.env`, access tokens, API keys, browser developer tools,
-  temporary storage folders, or any non-fictional document.
+- Say **“fictional sample”**, **“source-backed evidence”**, and **“human review remains required.”**
+- Do not claim identity verification, licence authenticity checks, QR validation, signature verification, legal driving-permission decisions, or production readiness.
+- Do not reveal `.env` files, OpenAI keys, JWTs, document capability tokens, MinIO credentials, database contents, or provider request/response payloads.

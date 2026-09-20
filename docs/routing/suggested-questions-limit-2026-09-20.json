@@ -1,0 +1,41 @@
+{
+  "work_unit": "Hide suggested document questions after two completed chat turns",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 0,
+      "scope": 1,
+      "reasoning": 1,
+      "verification": 1
+    },
+    "total": 3,
+    "risk": "low",
+    "evidence": {
+      "uncertainty": "The requested behavior maps directly to the existing question transcript count.",
+      "scope": "One conditional render preserves the rest of the chat interface.",
+      "reasoning": "Only completed question results increment the transcript; pending and failed submissions continue to show suggestions.",
+      "verification": "Frontend lint, TypeScript, and formatting checks cover the isolated JSX change."
+    }
+  },
+  "recommendation": {
+    "tier": "balanced",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "medium"
+  },
+  "dispatch": {
+    "mode": "direct coordinator execution",
+    "reason": "The change is a single established conditional render, so a worker would add coordination overhead without independent work to continue alongside it.",
+    "attempts_used": 1,
+    "escalations_used": 0
+  },
+  "outcome": {
+    "status": "complete",
+    "behavior": "Suggested questions render for zero or one completed chat turn and are hidden after the second completed turn. Clearing transcript state restores them for the active document.",
+    "checks": [
+      "frontend: npm run lint",
+      "frontend: npm run typecheck",
+      "frontend: npm run format:check",
+      "repository: git diff --check"
+    ]
+  }
+}

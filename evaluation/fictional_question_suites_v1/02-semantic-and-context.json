@@ -1,0 +1,41 @@
+{
+  "schema_version": "licenceiq.fictional-question-suite.v1",
+  "dataset": {
+    "id": "fictional-semantic-and-context-v1",
+    "status": "LOCAL_DRAFT_REVIEW_REQUIRED",
+    "purpose": "Verify grounded semantic retrieval, broad summaries, and same-document conversation context.",
+    "source_policy": "fictional_samples_only"
+  },
+  "cases": [
+    {
+      "id": "delhi-birth-paraphrase-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "When was this person born?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["25-03-1992"], "citation_required": true, "source_page": 1, "source_contains": ["Date of Birth", "25-03-1992"]},
+      "metadata": {"category": "semantic", "intent": "date_of_birth", "expected_path": "direct_or_grounded_retrieval"}
+    },
+    {
+      "id": "maharashtra-residence-paraphrase-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "Where does the licence holder live?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["Sai Residency", "Pune", "411052"], "citation_required": true, "source_page": 1, "source_contains": ["Address", "Sai Residency", "Pune"]},
+      "metadata": {"category": "semantic", "intent": "address", "expected_path": "retrieval"}
+    },
+    {
+      "id": "delhi-authority-paraphrase-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "Which office issued the licence?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["Transport Department", "Delhi"], "citation_required": true, "source_page": 1, "source_contains": ["Issuing Authority", "Transport Department, Delhi"]},
+      "metadata": {"category": "semantic", "intent": "issuing_authority", "expected_path": "retrieval"}
+    },
+    {
+      "id": "maharashtra-summary-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "Summarize this licence holder and driving entitlement.", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["ROHAN ANIL DESHMUKH", "MH12", "LMV", "MCWG"], "citation_required": true, "source_page": 1, "source_contains": ["Name", "DL No", "LMV", "MCWG"]},
+      "metadata": {"category": "semantic", "intent": "licence_summary", "expected_path": "grounded_summary"}
+    },
+    {
+      "id": "delhi-followup-validity-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "And until when is it valid?", "prior_questions": ["Tell me the driving licence number."]},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["09-04-2038"], "citation_required": true, "source_page": 1, "source_contains": ["Valid Till", "09-04-2038"]},
+      "metadata": {"category": "conversation_context", "intent": "date_of_expiry", "expected_path": "contextual_retrieval"}
+    }
+  ]
+}

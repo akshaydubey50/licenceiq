@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 1, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The live baseline returns a name for an address question and misses postal evidence; the exact routing and ranking interactions need regression reproduction.",
+    "scope": "Direct field selection, hybrid retrieval, query context and their existing question tests share one service.",
+    "reasoning": "Intent precedence and bounded neighboring evidence must improve relevance without crossing document boundaries or fabricating source text.",
+    "verification": "Offline regression/security tests must be followed by the same ten-case live fictional benchmark."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalations_used": 0,
+  "escalate": false
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": "licenceiq.fictional-question-suite.v1",
+  "dataset": {
+    "id": "fictional-happy-path-v1",
+    "status": "LOCAL_DRAFT_REVIEW_REQUIRED",
+    "purpose": "Verify direct, evidence-backed answers for common driving-licence questions.",
+    "source_policy": "fictional_samples_only"
+  },
+  "cases": [
+    {
+      "id": "maharashtra-licence-number-direct-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "What is the driving licence number?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["MH12", "20190001234"], "citation_required": true, "source_page": 1, "source_contains": ["DL No", "MH12"]},
+      "metadata": {"category": "happy_path", "intent": "licence_number", "expected_path": "direct"}
+    },
+    {
+      "id": "delhi-holder-name-direct-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "Who is the licence holder?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["PRIYA SHARMA"], "citation_required": true, "source_page": 1, "source_contains": ["Name", "PRIYA SHARMA"]},
+      "metadata": {"category": "happy_path", "intent": "holder_name", "expected_path": "direct"}
+    },
+    {
+      "id": "maharashtra-date-of-birth-direct-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "What is the holder's date of birth?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["12-08-1990"], "citation_required": true, "source_page": 1, "source_contains": ["DOB", "12-08-1990"]},
+      "metadata": {"category": "happy_path", "intent": "date_of_birth", "expected_path": "direct"}
+    },
+    {
+      "id": "delhi-expiry-direct-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "When does this licence expire?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["09-04-2038"], "citation_required": true, "source_page": 1, "source_contains": ["Valid Till", "09-04-2038"]},
+      "metadata": {"category": "happy_path", "intent": "date_of_expiry", "expected_path": "direct"}
+    },
+    {
+      "id": "maharashtra-vehicle-classes-direct-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "What vehicle classes is the person authorised to drive?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "ANSWERED", "answer_contains": ["LMV", "MCWG"], "citation_required": true, "source_page": 1, "source_contains": ["Valid for Class of Vehicle", "LMV", "MCWG"]},
+      "metadata": {"category": "happy_path", "intent": "vehicle_classes", "expected_path": "direct"}
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "licenceiq.fictional-question-suite.v1",
+  "dataset": {
+    "id": "fictional-off-topic-v1",
+    "status": "LOCAL_DRAFT_REVIEW_REQUIRED",
+    "purpose": "Verify clear scope guidance for requests unrelated to the uploaded driving licence.",
+    "source_policy": "fictional_samples_only"
+  },
+  "cases": [
+    {
+      "id": "weather-off-topic-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "What is the weather in Delhi today?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "OUT_OF_SCOPE", "answer_contains": ["LicenceIQ", "uploaded driving licence"], "citation_required": false},
+      "metadata": {"category": "off_topic", "intent": "weather", "expected_path": "scope_guidance"}
+    },
+    {
+      "id": "recipe-off-topic-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "Give me a recipe for pasta.", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "OUT_OF_SCOPE", "answer_contains": ["LicenceIQ", "uploaded driving licence"], "citation_required": false},
+      "metadata": {"category": "off_topic", "intent": "recipe", "expected_path": "scope_guidance"}
+    },
+    {
+      "id": "math-off-topic-v1",
+      "input": {"sample": "fictional_delhi_licence", "question": "What is 27 multiplied by 14?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "OUT_OF_SCOPE", "answer_contains": ["LicenceIQ", "uploaded driving licence"], "citation_required": false},
+      "metadata": {"category": "off_topic", "intent": "math", "expected_path": "scope_guidance"}
+    },
+    {
+      "id": "sports-off-topic-v1",
+      "input": {"sample": "fictional_maharashtra_licence", "question": "Who won the last cricket match?", "prior_questions": []},
+      "expected_output": {"outcome": "result", "status": "OUT_OF_SCOPE", "answer_contains": ["LicenceIQ", "uploaded driving licence"], "citation_required": false},
+      "metadata": {"category": "off_topic", "intent": "sports", "expected_path": "scope_guidance"}
+    }
+  ]
+}

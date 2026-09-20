@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The hosted ten-case dataset is verified; the existing local evaluator needs actual application observations and SDK experiment linking.",
+    "scope": "An isolated application adapter, experiment publishing, six metric functions, offline tests, and a live fictional-only run must agree.",
+    "reasoning": "Actual direct and retrieval paths must be measured without expected-output leakage; errors must remain failures and private runtime identifiers must not be exported.",
+    "verification": "Offline providers and SDK fakes precede a live OpenAI and Langfuse run with read-back verification."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalations_used": 0,
+  "escalate": false
+}

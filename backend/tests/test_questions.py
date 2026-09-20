@@ -46,6 +46,7 @@ from app.services.question_guardrails import (
     NeMoQuestionGuardrail,
     QuestionGuardrailBlocked,
 )
+from app.services.questions import QuestionService
 
 NOW = datetime(2026, 9, 19, 12, tzinfo=UTC)
 TOKEN = "phase-five-capability"
@@ -464,9 +465,10 @@ def add_multiline_address(
     assert stored is not None and stored.reading is not None and stored.extraction is not None
     page = stored.reading.pages[0]
     added = (
-        evidence(record.document_id, 1, 7, "Address: H No. 18, Pocket B-3,"),
-        evidence(record.document_id, 1, 8, "Patparganj,"),
-        evidence(record.document_id, 1, 9, "New Delhi - 110091"),
+        evidence(record.document_id, 1, 7, "Address"),
+        evidence(record.document_id, 1, 8, "H No. 18, Pocket B-3,"),
+        evidence(record.document_id, 1, 9, "Patparganj,"),
+        evidence(record.document_id, 1, 10, "New Delhi - 110091"),
     )
     stored.reading = stored.reading.model_copy(
         update={
@@ -718,7 +720,7 @@ def test_holder_subject_does_not_override_residence_intent(tmp_path: Path) -> No
     candidate = AnswerCandidate(
         status="ANSWERED",
         answer="H No. 18, Pocket B-3, Patparganj, New Delhi - 110091",
-        block_ids=("page-1-line-7", "page-1-line-8", "page-1-line-9"),
+        block_ids=("page-1-line-8", "page-1-line-9", "page-1-line-10"),
     )
     answer_provider = StaticAnswerProvider(candidate)
     application, record = make_application(tmp_path, answer_provider)
@@ -736,10 +738,11 @@ def test_holder_subject_does_not_override_residence_intent(tmp_path: Path) -> No
     assert response.json()["answer"] == candidate.answer
     assert answer_provider.calls == 1
     selected_ids = tuple(block.block_id for block in answer_provider.contexts[0].blocks)
-    assert selected_ids[:3] == (
+    assert selected_ids[:4] == (
         "page-1-line-7",
         "page-1-line-8",
         "page-1-line-9",
+        "page-1-line-10",
     )
 
 
@@ -747,7 +750,7 @@ def test_postal_follow_up_promotes_bounded_same_page_address_lines(tmp_path: Pat
     candidate = AnswerCandidate(
         status="ANSWERED",
         answer="110091",
-        block_ids=("page-1-line-9",),
+        block_ids=("page-1-line-10",),
     )
     answer_provider = StaticAnswerProvider(candidate)
     rewrite_provider = StaticQueryRewriteProvider(
@@ -776,10 +779,11 @@ def test_postal_follow_up_promotes_bounded_same_page_address_lines(tmp_path: Pat
     assert response.json()["answer"] == "110091"
     selected = answer_provider.contexts[0].blocks
     assert len(selected) <= 4
-    assert tuple(block.block_id for block in selected[:3]) == (
+    assert tuple(block.block_id for block in selected[:4]) == (
         "page-1-line-7",
         "page-1-line-8",
         "page-1-line-9",
+        "page-1-line-10",
     )
     assert all(block.page_number == 1 for block in selected)
 
@@ -798,9 +802,8 @@ def test_explicit_holder_name_and_address_can_be_returned_together(tmp_path: Pat
 
     assert response.status_code == 200
     assert response.json()["status"] == "ANSWERED"
-    assert response.json()["answer"] == (
-        "PRIYA SHARMA, H No. 18, Pocket B-3, Patparganj, New Delhi - 110091"
-    )
+    assert "PRIYA SHARMA" in response.json()["answer"]
+    assert "H No. 18, Pocket B-3, Patparganj, New Delhi - 110091" in response.json()["answer"]
     assert answer_provider.calls == 0
     assert application.state.question_service.embedding_provider.requests == []
 
@@ -812,14 +815,17 @@ def test_authority_issued_wording_uses_immutable_extraction(tmp_path: Path) -> N
     stored = repository.get(record.document_id)
     assert stored is not None and stored.reading is not None and stored.extraction is not None
     page = stored.reading.pages[0]
-    authority = evidence(record.document_id, 1, 7, "Transport Department, Delhi")
+    authority_heading = evidence(record.document_id, 1, 7, "Issuing Authority")
+    authority = evidence(record.document_id, 1, 8, "Transport Department, Delhi")
     stored.reading = stored.reading.model_copy(
         update={
             "pages": (
                 page.model_copy(
                     update={
-                        "text": f"{page.text}\n{authority.source_text}",
-                        "blocks": (*page.blocks, authority),
+                        "text": (
+                            f"{page.text}\n{authority_heading.source_text}\n{authority.source_text}"
+                        ),
+                        "blocks": (*page.blocks, authority_heading, authority),
                     }
                 ),
             )
@@ -828,9 +834,7 @@ def test_authority_issued_wording_uses_immutable_extraction(tmp_path: Path) -> N
     stored.extraction = stored.extraction.model_copy(
         update={
             "licence": stored.extraction.licence.model_copy(
-                update={
-                    "issuing_authority": source_field(authority, "Transport Department, Delhi")
-                }
+                update={"issuing_authority": source_field(authority, "Transport Department, Delhi")}
             )
         }
     )
@@ -846,10 +850,184 @@ def test_authority_issued_wording_uses_immutable_extraction(tmp_path: Path) -> N
     assert response.status_code == 200
     assert response.json()["answer"] == "Transport Department, Delhi"
     assert response.json()["citations"] == [
-        {"block_id": "page-1-line-7", "page_number": 1}
+        {"block_id": "page-1-line-7", "page_number": 1},
+        {"block_id": "page-1-line-8", "page_number": 1},
     ]
     assert answer_provider.calls == 0
     assert application.state.question_service.embedding_provider.requests == []
+
+
+def test_direct_heading_index_rejects_nonheading_previous_text() -> None:
+    document_id = str(uuid4())
+    prose = evidence(document_id, 1, 1, "Authority details appear below")
+    value = evidence(document_id, 1, 2, "Regional Transport Office")
+    reading = ReadingResult(
+        document_id=document_id,
+        status=ReadingStatus.READ,
+        pages=(
+            DocumentPage(
+                document_id=document_id,
+                page_number=1,
+                text=f"{prose.source_text}\n{value.source_text}",
+                blocks=(prose, value),
+                method="ocr",
+            ),
+        ),
+        created_at=NOW,
+    )
+
+    headings = QuestionService._direct_heading_index(
+        reading,
+        "Which authority issued this licence?",
+    )
+
+    assert headings == {}
+
+
+def test_direct_heading_index_rejects_mentioned_name_value_as_heading() -> None:
+    document_id = str(uuid4())
+    holder_value = evidence(document_id, 1, 1, "PRIYA SHARMA")
+    licence_value = evidence(document_id, 1, 2, "DL No: MH12 20260001234")
+    reading = ReadingResult(
+        document_id=document_id,
+        status=ReadingStatus.READ,
+        pages=(
+            DocumentPage(
+                document_id=document_id,
+                page_number=1,
+                text=f"{holder_value.source_text}\n{licence_value.source_text}",
+                blocks=(holder_value, licence_value),
+                method="ocr",
+            ),
+        ),
+        created_at=NOW,
+    )
+
+    headings = QuestionService._direct_heading_index(
+        reading,
+        "What is PRIYA SHARMA's licence number?",
+    )
+
+    assert headings == {}
+
+
+def test_direct_heading_index_accepts_configured_dynamic_fact_label() -> None:
+    document_id = str(uuid4())
+    heading = evidence(document_id, 1, 1, "Father's Name")
+    value = evidence(document_id, 1, 2, "RAJ SHARMA")
+    reading = ReadingResult(
+        document_id=document_id,
+        status=ReadingStatus.READ,
+        pages=(
+            DocumentPage(
+                document_id=document_id,
+                page_number=1,
+                text=f"{heading.source_text}\n{value.source_text}",
+                blocks=(heading, value),
+                method="ocr",
+            ),
+        ),
+        created_at=NOW,
+    )
+
+    headings = QuestionService._direct_heading_index(
+        reading,
+        "What is the father's name?",
+    )
+
+    assert headings == {"page-1-line-2": heading}
+
+
+def test_direct_heading_index_never_crosses_page_boundary() -> None:
+    document_id = str(uuid4())
+    heading = evidence(document_id, 1, 1, "Issuing Authority")
+    value = evidence(document_id, 2, 1, "Regional Transport Office")
+    reading = ReadingResult(
+        document_id=document_id,
+        status=ReadingStatus.READ,
+        pages=(
+            DocumentPage(
+                document_id=document_id,
+                page_number=1,
+                text=heading.source_text,
+                blocks=(heading,),
+                method="ocr",
+            ),
+            DocumentPage(
+                document_id=document_id,
+                page_number=2,
+                text=value.source_text,
+                blocks=(value,),
+                method="ocr",
+            ),
+        ),
+        created_at=NOW,
+    )
+
+    headings = QuestionService._direct_heading_index(
+        reading,
+        "Which authority issued this licence?",
+    )
+
+    assert headings == {}
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Where does the licence holder live?",
+        "Which categories of vehicle is the holder authorised to drive?",
+        "What is the holder's occupation or profession?",
+    ],
+)
+def test_specific_non_name_queries_drop_subject_terms_from_lexical_ranking(
+    question: str,
+) -> None:
+    terms = QuestionService._expanded_retrieval_terms(question)
+
+    assert "holder" not in terms
+    assert "person" not in terms
+
+
+def test_explicit_name_and_address_query_keeps_name_terms() -> None:
+    terms = QuestionService._expanded_retrieval_terms("What are the holder's name and address?")
+
+    assert {"holder", "name", "address"} <= terms
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Until what date can this licence be used?",
+        "Until when can this licence be used?",
+        "How long is this licence valid?",
+    ],
+)
+def test_validity_paraphrases_rank_expiry_evidence(
+    tmp_path: Path,
+    question: str,
+) -> None:
+    candidate = AnswerCandidate(
+        status="ANSWERED",
+        answer="14/06/2041",
+        block_ids=("page-1-line-3",),
+    )
+    answer_provider = StaticAnswerProvider(candidate)
+    application, record = make_application(tmp_path, answer_provider)
+
+    with TestClient(application) as client:
+        response = post_question(client, record.document_id, question)
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "14/06/2041"
+    assert answer_provider.calls == 1
+    assert answer_provider.contexts[0].blocks[0].block_id == "page-1-line-3"
+
+
+def test_generic_date_wording_does_not_gain_expiry_synonyms() -> None:
+    terms = QuestionService._expanded_retrieval_terms("What date can this licence be issued?")
+
+    assert not terms & {"expiry", "expiration", "expire", "expires", "valid", "validity"}
 
 
 def test_location_alone_does_not_map_to_address(tmp_path: Path) -> None:

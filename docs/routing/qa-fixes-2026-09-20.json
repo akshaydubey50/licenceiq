@@ -1,0 +1,94 @@
+{
+  "date": "2026-09-20",
+  "scope": "Fix Q&A failures measured by the reviewed fictional Langfuse benchmark",
+  "capabilities": "capabilities-live-experiment-2026-09-20.json; supported pairs rechecked against current agent tools",
+  "work_units": [
+    {
+      "name": "Intent routing, bounded retrieval and source heading citations",
+      "assessment_file": "qa-routing-retrieval-fix-2026-09-20.helper-input.json",
+      "scores": {"uncertainty": 1, "scope": 1, "reasoning": 2, "verification": 2},
+      "total": 6,
+      "risk": "high: document evidence integrity and isolation",
+      "recommended_route": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"},
+      "actual_execution": {
+        "worker": "/root/qa_intent_retrieval_fix",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "tier": "strong",
+        "history": "fresh self-contained handoff",
+        "owned_files": ["backend/app/services/questions.py", "backend/tests/test_questions.py"],
+        "nested_delegation": false
+      },
+      "attempts_used": 2,
+      "model_escalations_used": 0,
+      "attempt_history": [
+        "Initial intent and bounded neighbor retrieval fixes, then offline and live review",
+        "Preserve all address continuation lines and add recognized adjacent direct-field headings; reject arbitrary mentioned names and prose during same-attempt review"
+      ],
+      "remaining_finding": "One earlier final-code run missed a separate heading citation. A fresh preparation and instrumented benchmark passed. Source ordering is plausible but unconfirmed; no speculative third implementation attempt."
+    },
+    {
+      "name": "Source-extractive answer prompt and provider compatibility",
+      "assessment_file": "qa-provider-fix-2026-09-20.helper-input.json",
+      "scores": {"uncertainty": 1, "scope": 1, "reasoning": 2, "verification": 2},
+      "total": 6,
+      "risk": "high: unsupported licence claims must remain rejected",
+      "recommended_route": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"},
+      "actual_execution": {
+        "mode": "direct coordinator execution alongside independent service worker",
+        "model_switched": false,
+        "owned_files": ["backend/app/providers/openai_answer.py", "backend/tests/test_openai_answer.py"]
+      },
+      "attempts_used": 3,
+      "model_escalations_used": 0,
+      "attempt_history": [
+        "Request concise copied source spans, preserving codes and dates without framing prose",
+        "Prefer the complete qualified form when the source contains both short and qualified values",
+        "Require all printed authorization and COV rows when both are relevant to driving entitlements"
+      ],
+      "diagnostic_evidence": "Seven focused live answer-provider calls distinguished candidate output, unchanged grounding and NeMo; final vehicle probe retained qualifiers and passed grounding/guardrails."
+    }
+  ],
+  "coordinator_integration": [
+    "Reviewed worker implementation and evidence/page/size boundaries",
+    "Extended experiment code fingerprint to include answer/rewrite providers and guardrails",
+    "Kept evaluator v0.2 and gold dataset unchanged",
+    "Ran four full live experiments after baseline, preserving intermediate failures",
+    "Ran one separate fictional Delhi preparation and one instrumented experiment to inspect heading order without changing pipeline behavior",
+    "Read back both final-code experiments through Langfuse CLI",
+    "Rebuilt only the existing local backend; deployment verification recorded in evaluation report"
+  ],
+  "checks": [
+    "161 focused tests passed, including 98 question-service tests",
+    "Ruff check and format check passed for five affected Python files",
+    "Focused mypy with explicit package bases and silent imports passed for service, provider and runner",
+    "Both final-code hosted runs exactly match ten local outputs, 26 item scores and six aggregate scores",
+    "Rebuilt local backend healthy; container hashes of question service and answer provider exactly match workspace; API health and frontend returned HTTP200"
+  ],
+  "final_code_runs": [
+    {"name": "licenceiq-gold-v0-20260920T090921433728Z", "id": "ad37ca7d-2c1f-482d-8a5d-7e878c58b9d9", "error_count": 0, "citation_support_rate": 0.875},
+    {"name": "licenceiq-gold-v0-20260920T091301915685Z", "id": "725f0419-73f0-4f3a-bb26-63c325d7b7bb", "error_count": 0, "citation_support_rate": 1.0}
+  ],
+  "latest_metrics": {
+    "evidence_recall_at_3": 0.9167,
+    "evidence_recall_at_5": 1.0,
+    "mean_reciprocal_rank": 0.7083,
+    "citation_support_rate": 1.0,
+    "abstention_accuracy": 1.0,
+    "direct_path_accuracy": 1.0
+  },
+  "continuity": {
+    "concurrent_commit_observed": "3607856",
+    "note": "Another task committed a holder-summary feature and intermediate service changes while this work was active. Those changes, unrelated frontend edits, evaluation-suite work and skill-drafts were preserved.",
+    "commit_or_push_by_this_task": false,
+    "global_skill_or_model_map_changed": false
+  },
+  "limitations": [
+    "Ten-case debugging benchmark is not held-out production accuracy",
+    "Earlier final-code heading omission is unconfirmed and remains visible",
+    "One intermediate extraction-provider error affected six cached-preparation cases; production extraction handling was not changed",
+    "No browser, auth or exhaustive API regression claim",
+    "Pre-existing full-import mypy observability protocol issue remains outside scope"
+  ],
+  "report": "../evaluation/QA_FIXES_2026-09-20.md"
+}

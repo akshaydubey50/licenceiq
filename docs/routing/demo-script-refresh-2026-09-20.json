@@ -1,0 +1,40 @@
+{
+  "work_unit": "Refresh the assessment video script for the current LicenceIQ build",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 1,
+      "verification": 1
+    },
+    "total": 4,
+    "risk": "low",
+    "recommendation": {
+      "tier": "balanced",
+      "model": "gpt-5.6-terra",
+      "effort": "medium"
+    }
+  },
+  "execution": {
+    "mode": "direct coordinator implementation",
+    "workers": [],
+    "attempts": 1,
+    "files": [
+      "docs/DEMO_SCRIPT.md",
+      "README.md"
+    ]
+  },
+  "validation": {
+    "source_of_truth": [
+      "README.md",
+      "docs/PHASE_9_LOCAL_SETUP.md",
+      "docs/PHASE_10B_DURABLE_RUNTIME.md",
+      "docs/PHASE_10C_SIGNED_CHAT.md"
+    ],
+    "checks": [
+      "Narration covers upload, reading/OCR, extraction, review, Q&A, citations, abstention, architecture, limitations, and AI-assisted development disclosure.",
+      "The script uses fictional samples only and excludes credentials, tokens, storage consoles, and real identity claims."
+    ]
+  },
+  "status": "implemented"
+}

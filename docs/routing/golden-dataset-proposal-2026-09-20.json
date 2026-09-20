@@ -1,0 +1,20 @@
+{
+  "work_unit": "Propose a fictional-source Langfuse retrieval evaluation dataset",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 1, "scope": 1, "reasoning": 1, "verification": 1},
+    "total": 4,
+    "risk": "medium",
+    "recommendation": {"tier": "balanced", "model": "gpt-5.6-terra", "effort": "medium"}
+  },
+  "execution": {
+    "mode": "direct coordinator planning",
+    "reason": "No application behavior, external dataset, or evaluation result is changed before explicit dataset approval."
+  },
+  "outcome": {
+    "artifact": "docs/evaluation/GOLDEN_DATASET_PROPOSAL.md",
+    "source_boundary": "Only bundled fictional licence samples are proposed.",
+    "live_langfuse_mutation": "not performed"
+  },
+  "status": "awaiting_dataset_approval"
+}

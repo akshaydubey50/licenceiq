@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 1, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The baseline returns unavailable when expiry and vehicle evidence is present; raw candidate versus grounding and guardrail stages must be distinguished.",
+    "scope": "Answer provider prompt and response contract plus focused tests; coordinate without overlapping the question-service worker.",
+    "reasoning": "Improve source-faithful answers without weakening citation validation, accepting unsupported facts, or treating document instructions as trusted.",
+    "verification": "Reproduce on reviewed fictional contexts, keep hallucination and cross-document rejection tests, rerun frozen benchmark."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalations_used": 0,
+  "escalate": false
+}

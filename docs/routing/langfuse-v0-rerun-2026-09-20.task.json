@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 1,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The reviewed v0 uploader and experiment runner already exist, but current remote dataset state and provider availability require a guarded preflight.",
+    "scope": "The action uploads only the existing ten fictional v0 items and runs the existing isolated evaluation adapter.",
+    "reasoning": "The run must validate remote dataset parity, retain provider failures in scoring, and not expose credentials or real documents.",
+    "verification": "Success requires uploader output, completed experiment metrics, a Langfuse experiment URL, and a locally written report."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

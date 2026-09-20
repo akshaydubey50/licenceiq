@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The existing project already uses Langfuse Python SDK v4, but the exact reviewed gold-data mapping and idempotent dataset-item contract need focused inspection.",
+    "scope": "The uploader connects local reviewed JSON, secret validation, Langfuse SDK calls, tests, user instructions, and the remote dataset created in the dashboard.",
+    "reasoning": "The code must reject non-fictional or malformed input, avoid real licence material, preserve item identity, and require explicit --upload before an external mutation.",
+    "verification": "Offline SDK fakes must prove dry-run and upload payloads; a real upload cannot be claimed without configured credentials and an explicit operator command."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

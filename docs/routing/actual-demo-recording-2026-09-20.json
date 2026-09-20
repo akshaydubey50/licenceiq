@@ -1,0 +1,57 @@
+{
+  "work_unit": "Record and package a real LicenceIQ assessment walkthrough",
+  "assessment": {
+    "scores": {
+      "uncertainty": 2,
+      "scope": 2,
+      "reasoning": 1,
+      "verification": 2
+    },
+    "score": 7,
+    "risk": "medium",
+    "recommended_tier": "strong",
+    "recommendation": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "helper_result": "candidate"
+    }
+  },
+  "execution": {
+    "dispatch": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "scope": "Read-only selector, flow, timing, and acceptance-plan review for a live Playwright recording.",
+      "owned_files": [],
+      "attempts": 1,
+      "escalations": 0,
+      "outcome": "accepted as the recording plan"
+    },
+    "coordinator_work": [
+      "Created a repeatable Playwright recorder that uses the local app and the fictional bundled licence sample.",
+      "Created an MP4 conversion utility that does not alter recorded application actions.",
+      "Corrected one strict Playwright locator after the first run found three separate 'Unsaved changes' labels."
+    ],
+    "attempts_used": 2,
+    "escalations_used": 0
+  },
+  "validation": {
+    "passed": [
+      "Python syntax checks passed for the recorder and MP4 converter.",
+      "Playwright smoke recording passed against http://127.0.0.1:3000 before the live run.",
+      "The complete live run passed and produced a 319-second browser capture after guest access, account registration, login, upload, live reading, evidence, review save, three Q&A paths, and logout.",
+      "The final MP4 opens successfully in OpenCV at 1600x900, 25 FPS, 7,826 frames, and 313.0 seconds.",
+      "First, middle, and final MP4 frames all decode successfully."
+    ],
+    "first_attempt": "Stopped at the review status assertion because a broad text locator matched three elements; corrected by scoping the assertion to the extracted-information form save status.",
+    "output": "artifacts/recordings/live-demo-20260920T095515Z/LicenceIQ-Live-Demo-5m13.mp4"
+  },
+  "limitations": [
+    "The recording uses only fictional sample data and a fresh local demonstration account.",
+    "It is a silent live product walkthrough; the separate demo script can be used as the spoken narration when presenting it."
+  ],
+  "outcome": {
+    "status": "recorded, packaged, and verified"
+  }
+}

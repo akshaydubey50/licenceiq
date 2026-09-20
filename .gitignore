@@ -29,6 +29,8 @@ out/
 .data/
 storage/
 uploads/
+artifacts/
+.tools/
 *.log
 dist/
 build/

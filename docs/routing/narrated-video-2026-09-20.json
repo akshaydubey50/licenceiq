@@ -1,0 +1,58 @@
+{
+  "work_unit": "Create a narrated final LicenceIQ assessment video",
+  "assessment": {
+    "scores": {
+      "uncertainty": 2,
+      "scope": 2,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "score": 8,
+    "risk": "medium",
+    "recommended_tier": "strong",
+    "recommendation": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "helper_result": "candidate"
+    }
+  },
+  "execution": {
+    "dispatch": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "scope": "Read-only narrated-video media feasibility review.",
+      "owned_files": [],
+      "attempts": 1,
+      "escalations": 0,
+      "outcome": "accepted as the media plan"
+    },
+    "coordinator_work": [
+      "Rewrote the narration to match the existing 313-second live browser recording.",
+      "Added a timestamped OpenAI TTS and local FFmpeg assembly script.",
+      "Generated 11 narrated scenes from the approved text only, keeping the video, fictional licence, and credentials local.",
+      "Re-encoded the source into a broadly compatible H.264/AAC MP4."
+    ],
+    "attempts_used": 2,
+    "escalations_used": 0,
+    "recovery": "The first external TTS request was blocked pending explicit user approval. A local Windows TTS fallback then proved unavailable because no installed voice could be selected. After the user explicitly approved the prepared narration payload, the timestamped OpenAI TTS pipeline completed."
+  },
+  "validation": {
+    "passed": [
+      "Python syntax check passed for the timestamped OpenAI narration pipeline.",
+      "Narration extraction found 11 continuous scenes spanning 0 to 313 seconds.",
+      "The final video fully decodes through local FFmpeg.",
+      "Final inspection reports 00:05:13.04, H.264 High video at 1600x900 and 25 FPS, and AAC-LC stereo audio at 48 kHz.",
+      "OpenCV decoded the first, middle, and final frames, and measured 7,826 frames over 313.04 seconds."
+    ],
+    "output": "artifacts/recordings/live-demo-20260920T095515Z/LicenceIQ-Live-Demo-Narrated.mp4"
+  },
+  "limitations": [
+    "The voice-over is synthetic and should be described as AI-generated when appropriate.",
+    "Only the prepared narration text was sent to OpenAI TTS; no video, licence image, credentials, tokens, or database data left the local workspace."
+  ],
+  "outcome": {
+    "status": "recorded, narrated, encoded, and verified"
+  }
+}

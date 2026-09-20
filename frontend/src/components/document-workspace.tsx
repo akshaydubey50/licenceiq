@@ -54,6 +54,7 @@ const OUT_OF_SCOPE_ANSWER =
 const MAX_QUESTION_LENGTH = 500;
 const MAX_QUESTION_HISTORY_ENTRIES = 3;
 const MAX_TRANSCRIPT_ENTRIES = 50;
+const SUGGESTION_DISMISS_AFTER_TURNS = 2;
 const SUGGESTED_QUESTIONS = [
   "What is the driving licence number?",
   "When does this licence expire?",
@@ -2834,28 +2835,32 @@ export function DocumentWorkspace({
                   )}
                 </ol>
               )}
-              <div
-                className="suggested-questions"
-                aria-labelledby="suggested-questions-label"
-              >
-                <span id="suggested-questions-label">Suggested questions</span>
-                <div>
-                  {SUGGESTED_QUESTIONS.map((suggestion) => (
-                    <button
-                      type="button"
-                      key={suggestion}
-                      disabled={chatActionsDisabled}
-                      onClick={() => {
-                        setQuestion(suggestion);
-                        setQuestionError(null);
-                        questionInputRef.current?.focus();
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
+              {questionTranscript.length < SUGGESTION_DISMISS_AFTER_TURNS && (
+                <div
+                  className="suggested-questions"
+                  aria-labelledby="suggested-questions-label"
+                >
+                  <span id="suggested-questions-label">
+                    Suggested questions
+                  </span>
+                  <div>
+                    {SUGGESTED_QUESTIONS.map((suggestion) => (
+                      <button
+                        type="button"
+                        key={suggestion}
+                        disabled={chatActionsDisabled}
+                        onClick={() => {
+                          setQuestion(suggestion);
+                          setQuestionError(null);
+                          questionInputRef.current?.focus();
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               <form
                 className="question-form"
                 onSubmit={(event) => {

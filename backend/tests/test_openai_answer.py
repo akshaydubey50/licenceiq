@@ -14,6 +14,7 @@ from app.core.errors import ApplicationError
 from app.providers import openai_answer
 from app.providers.answer import AnswerCandidate, QuestionBlock, QuestionContext
 from app.providers.openai_answer import OpenAIAnswerProvider
+from app.services.questions import QuestionService
 
 
 def settings(**overrides: Any) -> Settings:
@@ -95,6 +96,82 @@ def test_request_is_strict_bounded_nonpersistent_and_has_no_tools(
     assert payload["text"]["format"]["schema"]["additionalProperties"] is False
     assert client_args["timeout"] == 7
     assert client_args["max_retries"] == 0
+
+
+@pytest.mark.parametrize(
+    ("question", "sources", "answer"),
+    [
+        ("How long can I use this?", ("Valid Till: 03-02-2031",), "03-02-2031"),
+        (
+            "Which categories can the holder drive?",
+            ("COV: A2 (restricted), B",),
+            "A2 (restricted), B",
+        ),
+        (
+            "Which categories can the holder drive?",
+            ("Authorisation: B", "Class: B (restricted)"),
+            "Authorisation: B\nClass: B (restricted)",
+        ),
+        (
+            "Which authority issued this?",
+            ("Issuing Authority", "Example Transport Office"),
+            "Example Transport Office",
+        ),
+        (
+            "Where does the holder reside?",
+            ("Address: 42 Example Road", "Example Town 12345"),
+            "42 Example Road, Example Town 12345",
+        ),
+    ],
+)
+def test_extractive_provider_answers_pass_existing_grounding_without_relaxing_it(
+    monkeypatch: pytest.MonkeyPatch,
+    question: str,
+    sources: tuple[str, ...],
+    answer: str,
+) -> None:
+    """Source spans survive the real SDK parser and the application's existing evidence check."""
+    blocks = tuple(
+        QuestionBlock(block_id=f"source-{index}", page_number=1, text=text)
+        for index, text in enumerate(sources)
+    )
+    mock_transport(
+        monkeypatch,
+        lambda request: httpx.Response(
+            200,
+            json=response_body(
+                {
+                    "status": "ANSWERED",
+                    "answer": answer,
+                    "block_ids": [block.block_id for block in blocks],
+                }
+            ),
+        ),
+    )
+    candidate = OpenAIAnswerProvider(settings()).answer_question(
+        QuestionContext(question=question, blocks=blocks)
+    )
+    assert candidate.answer == answer
+    assert QuestionService._answer_is_supported(
+        candidate.answer, candidate.block_ids, {block.block_id: block for block in blocks}
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "unsupported_answer"),
+    [
+        ("COV: MCWG", "Motorcycle With Gear"),
+        ("Valid Till: 03-02-2031", "03-02-2032"),
+        ("Name: EXAMPLE PERSON", "Occupation: professional driver"),
+    ],
+)
+def test_grounding_still_rejects_code_expansion_changed_values_and_invented_facts(
+    source: str, unsupported_answer: str
+) -> None:
+    block = QuestionBlock(block_id="source", page_number=1, text=source)
+    assert not QuestionService._answer_is_supported(
+        unsupported_answer, (block.block_id,), {block.block_id: block}
+    )
 
 
 def test_prompt_keeps_commands_inside_escaped_untrusted_context(

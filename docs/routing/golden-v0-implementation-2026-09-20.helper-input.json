@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 2, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The existing synthetic Langfuse envelope evaluator must gain a fictional-document gold schema without leaking production data or treating OCR output as ground truth.",
+    "scope": "Gold data, deterministic metric calculation, a runnable evaluator, Langfuse experiment export, regression tests, and documentation must agree.",
+    "reasoning": "The evaluator must distinguish direct lookup, retrieval ranking, citations, unavailable responses, and out-of-scope responses while preserving source isolation.",
+    "verification": "New offline cases must cover all six approved metrics; live Langfuse export remains dependent on user-provided credentials."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

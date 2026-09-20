@@ -1,0 +1,55 @@
+{
+  "work_unit": "fictional golden dataset v0 and deterministic local evaluator",
+  "date": "2026-09-20",
+  "assessment": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2,
+    "total": 8,
+    "risk": "high",
+    "evidence": {
+      "uncertainty": "The existing synthetic evaluator needed a reviewed fictional-document contract without presenting OCR output as ground truth.",
+      "scope": "The data contract, six deterministic metrics, test-only evaluator, regression tests, and privacy documentation must agree.",
+      "reasoning": "The implementation distinguishes direct lookups, retrieval ranking, citation support, unavailable answers, and out-of-scope guidance.",
+      "verification": "The work needs schema validation and focused tests for each metric without live provider or Langfuse access."
+    }
+  },
+  "recommendation": {
+    "tier": "strong",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  },
+  "dispatch": {
+    "mode": "delegated dataset authoring plus coordinator integration",
+    "worker": "/root/gold_v0_dataset",
+    "actual_model": "gpt-5.6-sol",
+    "actual_reasoning_effort": "high",
+    "attempt": 1,
+    "owned_files": [
+      "evaluation/fictional_licence_gold_v0.json"
+    ],
+    "coordinator_owned_files": [
+      "backend/scripts/fictional_gold_eval.py",
+      "backend/tests/test_fictional_gold_eval.py",
+      "docs/evaluation/GOLDEN_DATASET_PROPOSAL.md",
+      "docs/routing/golden-v0-implementation-2026-09-20.json"
+    ]
+  },
+  "outcome": {
+    "status": "accepted",
+    "attempts_used": 1,
+    "model_escalations_used": 0,
+    "implementation": "A 10-case local dataset uses only supplied fictional samples. The evaluator accepts an explicit test-only result envelope and reports Evidence Recall@3, Evidence Recall@5, MRR, citation support rate, abstention accuracy, and direct-path accuracy.",
+    "checks": [
+      "backend: uv run pytest -q tests/test_fictional_gold_eval.py tests/test_source_grounding_eval.py",
+      "backend: uv run ruff check scripts/fictional_gold_eval.py tests/test_fictional_gold_eval.py --no-cache",
+      "backend: uv run ruff format --check scripts/fictional_gold_eval.py tests/test_fictional_gold_eval.py"
+    ],
+    "observed_limitations": [
+      "No provider, application API, or Langfuse call is made by the local evaluator.",
+      "A live fictional-sample adapter and a Langfuse experiment require separate review and configured Langfuse credentials.",
+      "The data is a Q&A and grounding regression baseline, not an OCR accuracy benchmark."
+    ]
+  }
+}
