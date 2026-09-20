@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     langfuse_base_url: str = Field(default="", validation_alias="LANGFUSE_BASE_URL")
     # Licence contents are too sensitive for prompt/completion capture. This invariant
     # intentionally rejects attempts to enable it through environment configuration.
-    langfuse_capture_io: Literal[False] = Field(
+    langfuse_capture_io: bool = Field(
         default=False,
         validation_alias="LANGFUSE_CAPTURE_IO",
     )
@@ -151,6 +151,14 @@ class Settings(BaseSettings):
             raise ValueError("Langfuse base URL must be an HTTP(S) URL without credentials.")
         _ = parsed.port
         return normalized
+
+    @field_validator("langfuse_capture_io")
+    @classmethod
+    def validate_langfuse_capture_io(cls, value: bool) -> bool:
+        """Accept normal environment boolean syntax while permanently forbidding capture."""
+        if value:
+            raise ValueError("Langfuse input/output capture must remain disabled.")
+        return False
 
     @model_validator(mode="after")
     def validate_private_deployment_settings(self) -> "Settings":

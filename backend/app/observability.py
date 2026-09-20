@@ -35,6 +35,7 @@ class TraceStage(StrEnum):
     EMBED = "embed"
     QUERY_REWRITE = "query_rewrite"
     ANSWER = "answer"
+    QUESTION = "question"
 
 
 class ObservationType(StrEnum):
@@ -42,6 +43,7 @@ class ObservationType(StrEnum):
 
     GENERATION = "generation"
     EMBEDDING = "embedding"
+    SPAN = "span"
 
 
 class TraceClient(Protocol):
@@ -52,7 +54,7 @@ class TraceClient(Protocol):
         *,
         stage: TraceStage,
         observation_type: ObservationType,
-        model: str,
+        model: str | None,
         operation: Callable[[], T],
         metadata: Mapping[str, object] | None = None,
         success_metadata: Callable[[T], Mapping[str, object]] | None = None,
@@ -71,7 +73,7 @@ class NullTraceClient:
         *,
         stage: TraceStage,
         observation_type: ObservationType,
-        model: str,
+        model: str | None,
         operation: Callable[[], T],
         metadata: Mapping[str, object] | None = None,
         success_metadata: Callable[[T], Mapping[str, object]] | None = None,
@@ -153,13 +155,17 @@ class LangfuseTraceClient:
             **(metadata or {}),
         }
         try:
+            observation_kwargs: dict[str, object] = {
+                "name": f"licenceiq.{stage.value}",
+                "as_type": observation_type.value,
+                "input": None,
+                "output": None,
+                "metadata": sanitize_metadata(initial),
+            }
+            if model is not None:
+                observation_kwargs["model"] = safe_model_name(model)
             context = self._client.start_as_current_observation(
-                name=f"licenceiq.{stage.value}",
-                as_type=observation_type.value,
-                model=safe_model_name(model),
-                input=None,
-                output=None,
-                metadata=sanitize_metadata(initial),
+                **observation_kwargs,
             )
             observation = context.__enter__()
         except Exception:

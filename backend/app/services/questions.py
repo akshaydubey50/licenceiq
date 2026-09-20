@@ -25,6 +25,7 @@ from app.models.document import (
     ReadingResult,
     SemanticIndex,
 )
+from app.observability import ObservationType, TraceClient, TraceStage
 from app.providers.answer import (
     SAFE_UNAVAILABLE_ANSWER,
     AnswerCandidate,
@@ -278,6 +279,7 @@ class QuestionService:
         embedding_provider: EmbeddingProvider,
         query_rewrite_provider: QueryRewriteProvider,
         question_guardrail: QuestionGuardrail,
+        trace_client: TraceClient | None = None,
         now_provider: Callable[[], datetime] | None = None,
         monotonic_provider: Callable[[], float] | None = None,
     ) -> None:
@@ -288,6 +290,7 @@ class QuestionService:
         self.embedding_provider = embedding_provider
         self.query_rewrite_provider = query_rewrite_provider
         self.question_guardrail = question_guardrail
+        self.trace_client = trace_client
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
         self.monotonic_provider = monotonic_provider or time.monotonic
         self._active_guard = threading.Lock()
@@ -301,6 +304,26 @@ class QuestionService:
         request: QuestionRequest,
     ) -> QuestionResult:
         """Answer one question and save only a validated eligible signed-user result."""
+        if self.trace_client is None:
+            return self._ask(document_id, authorization, request)
+        return self.trace_client.run(
+            stage=TraceStage.QUESTION,
+            observation_type=ObservationType.SPAN,
+            model=None,
+            operation=lambda: self._ask(document_id, authorization, request),
+            success_metadata=lambda result: {
+                "available": result.status == QuestionStatus.ANSWERED,
+                "citation_count": len(result.citations),
+            },
+        )
+
+    def _ask(
+        self,
+        document_id: str,
+        authorization: DocumentCredential,
+        request: QuestionRequest,
+    ) -> QuestionResult:
+        """Execute one question turn inside an optional privacy-safe trace span."""
         initial = self.document_service.authorized_record(document_id, authorization)
         self._require_reading(initial)
         self._require_extraction(initial)
@@ -416,7 +439,7 @@ class QuestionService:
     ) -> tuple[ExtractedField, ...] | None:
         normalized = QuestionService._normalize_phrase(question)
         licence = extraction.licence
-        matches: list[tuple[ExtractedField, ...]] = []
+        standard_matches: list[tuple[ExtractedField, ...]] = []
         asks_relationship_name = QuestionService._contains_phrase(normalized, "name") and any(
             QuestionService._contains_phrase(normalized, term) for term in _RELATIONSHIP_TERMS
         )
@@ -466,7 +489,14 @@ class QuestionService:
         )
         for phrases, fields in patterns:
             if any(QuestionService._contains_phrase(normalized, phrase) for phrase in phrases):
-                matches.append(fields)
+                standard_matches.append(fields)
+        # A birth-place question is not a date-of-birth question.  Only map the
+        # natural "when ... born" wording to DOB when it asks for a time value.
+        if QuestionService._contains_phrase(normalized, "born") and any(
+            QuestionService._contains_phrase(normalized, temporal_term)
+            for temporal_term in ("when", "date", "day", "year")
+        ):
+            standard_matches.append((licence.date_of_birth,))
         has_explicit_holder_name = any(
             QuestionService._contains_phrase(normalized, phrase)
             for phrase in ("full name", "holder name", "licence holder")
@@ -476,7 +506,7 @@ class QuestionService:
             and not asks_relationship_name
             and not has_explicit_holder_name
         ):
-            matches.append((licence.full_name,))
+            standard_matches.append((licence.full_name,))
 
         other_by_label: dict[str, list[ExtractedField]] = {}
         for name, field in licence.other_information.items():
@@ -499,14 +529,22 @@ class QuestionService:
             ):
                 other_matches.add(label)
 
-        matches.extend(
-            (field,) for label in sorted(other_matches) for field in other_by_label[label]
-        )
-
-        if asks_relationship_name and not matches:
+        if asks_relationship_name and not standard_matches and not other_matches:
             # Never reinterpret a missing relationship name as the holder's name.
             return ()
-        return matches[0] if len(matches) == 1 else None
+        # More than one extra label can refer to the same conversational alias
+        # (for example, both Height and Body Height). Keep that case ambiguous
+        # instead of selecting a value. Explicitly requested standard fields,
+        # however, are safe to combine because each has immutable evidence.
+        if len(other_matches) > 1:
+            return None
+        selected = list(standard_matches)
+        if other_matches:
+            label = next(iter(other_matches))
+            selected.extend((field,) for field in other_by_label[label])
+        if not selected:
+            return None
+        return tuple(field for fields in selected for field in fields)
 
     def _direct_result(
         self,

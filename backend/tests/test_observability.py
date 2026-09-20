@@ -83,6 +83,7 @@ def test_langfuse_is_disabled_by_default_and_with_incomplete_credentials() -> No
 
 
 def test_langfuse_requires_explicit_io_capture_off() -> None:
+    assert Settings(_env_file=None, LANGFUSE_CAPTURE_IO="false").langfuse_capture_io is False
     with pytest.raises(ValidationError):
         Settings(_env_file=None, LANGFUSE_CAPTURE_IO=True)
 
@@ -167,6 +168,37 @@ def test_telemetry_failures_do_not_block_provider_work() -> None:
         tracer.shutdown()
 
     assert calls == 2
+
+
+def test_question_turn_span_omits_model_and_private_io() -> None:
+    fake = FakeLangfuseClient()
+    tracer = LangfuseTraceClient(fake)
+
+    result = tracer.run(
+        stage=TraceStage.QUESTION,
+        observation_type=ObservationType.SPAN,
+        model=None,
+        metadata={"document_id": "private-document-id"},
+        operation=lambda: "safe-result",
+        success_metadata=lambda _: {"available": True, "citation_count": 2},
+    )
+
+    assert result == "safe-result"
+    started = fake.starts[0]
+    assert started["name"] == "licenceiq.question"
+    assert started["as_type"] == "span"
+    assert "model" not in started
+    assert started["input"] is None
+    assert started["output"] is None
+    assert started["metadata"] == {"stage": "question", "operation_type": "span"}
+    assert fake.observation.updates[0]["metadata"] == {
+        "stage": "question",
+        "operation_type": "span",
+        "outcome": "success",
+        "duration_ms": fake.observation.updates[0]["metadata"]["duration_ms"],
+        "available": True,
+        "citation_count": 2,
+    }
 
 
 def _raise_secret_exception() -> str:

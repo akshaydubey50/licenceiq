@@ -417,6 +417,43 @@ def add_other_information(
     repository._write_metadata_atomic(stored, repository._metadata_path(record.document_id))
 
 
+def add_birth_and_issue_dates(
+    application: FastAPI,
+    record: StoredDocumentRecord,
+) -> None:
+    """Attach immutable birth and issue dates with matching source evidence."""
+    repository = application.state.document_service.repository
+    stored = repository.get(record.document_id)
+    assert stored is not None and stored.reading is not None and stored.extraction is not None
+    page = stored.reading.pages[0]
+    birth_evidence = evidence(record.document_id, 1, 7, "DOB: 07/11/1994")
+    issue_evidence = evidence(record.document_id, 1, 8, "DOI: 15/06/2021")
+    added = (birth_evidence, issue_evidence)
+    stored.reading = stored.reading.model_copy(
+        update={
+            "pages": (
+                page.model_copy(
+                    update={
+                        "text": "\n".join(item.source_text for item in (*page.blocks, *added)),
+                        "blocks": (*page.blocks, *added),
+                    }
+                ),
+            )
+        }
+    )
+    stored.extraction = stored.extraction.model_copy(
+        update={
+            "licence": stored.extraction.licence.model_copy(
+                update={
+                    "date_of_birth": source_field(birth_evidence, "07/11/1994"),
+                    "date_of_issue": source_field(issue_evidence, "15/06/2021"),
+                }
+            )
+        }
+    )
+    repository._write_metadata_atomic(stored, repository._metadata_path(record.document_id))
+
+
 @pytest.mark.parametrize(
     ("question", "answer", "block_ids"),
     [
@@ -468,6 +505,51 @@ def test_direct_source_fields_bypass_provider(
     assert provider.calls == 0
     assert application.state.question_service.embedding_provider.requests == []
     assert repository.get(record.document_id).extraction == source_extraction
+
+
+def test_natural_birth_date_question_uses_immutable_extraction_without_providers(
+    tmp_path: Path,
+) -> None:
+    provider = StaticAnswerProvider(unavailable())
+    application, record = make_application(tmp_path, provider)
+    add_birth_and_issue_dates(application, record)
+
+    with TestClient(application) as client:
+        response = post_question(client, record.document_id, "When did this person born?")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ANSWERED"
+    assert response.json()["answer"] == "07/11/1994"
+    assert response.json()["citations"] == [
+        {"block_id": "page-1-line-7", "page_number": 1}
+    ]
+    assert provider.calls == 0
+    assert application.state.question_service.embedding_provider.requests == []
+
+
+def test_explicit_multi_fact_question_returns_all_source_fields_without_providers(
+    tmp_path: Path,
+) -> None:
+    provider = StaticAnswerProvider(unavailable())
+    application, record = make_application(tmp_path, provider)
+    add_birth_and_issue_dates(application, record)
+
+    with TestClient(application) as client:
+        response = post_question(
+            client,
+            record.document_id,
+            "What are the DOB and date of issue?",
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ANSWERED"
+    assert response.json()["answer"] == "07/11/1994, 15/06/2021"
+    assert response.json()["citations"] == [
+        {"block_id": "page-1-line-7", "page_number": 1},
+        {"block_id": "page-1-line-8", "page_number": 1},
+    ]
+    assert provider.calls == 0
+    assert application.state.question_service.embedding_provider.requests == []
 
 
 @pytest.mark.parametrize(

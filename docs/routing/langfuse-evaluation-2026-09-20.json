@@ -1,0 +1,61 @@
+{
+  "work_unit": "Privacy-safe opt-in Langfuse source-grounding evaluation foundation",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 1,
+      "verification": 1
+    },
+    "total": 4,
+    "risk": "high",
+    "risk_reason": "The external experiment path must never export private licence content, Q&A content, identifiers, or secrets.",
+    "recommended_tier": "strong"
+  },
+  "routing": {
+    "helper": "candidate",
+    "recommended_model": "gpt-5.6-sol",
+    "recommended_effort": "high",
+    "actual_dispatch": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "worker_scope": "Standalone synthetic evaluation script, focused offline tests, and owned evaluation/routing documentation.",
+      "attempts_used": 2,
+      "escalations_used": 0
+    }
+  },
+  "implementation": {
+    "local_behavior": "Seven fixed synthetic status/citation envelopes are classified and exactly scored without importing Langfuse or making network calls.",
+    "export_gate": "Export requires --export-langfuse, LICENCEIQ_LANGFUSE_EVAL_EXPORT=true, complete LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY/LANGFUSE_BASE_URL, and a valid HTTP(S) server URL.",
+    "export_payload": "Fixed fixture labels, allowlisted status labels, integer citation counts, expected category labels, and fixed suite metadata only.",
+    "sdk_path": "Langfuse Python SDK 4.15.4 local-data run_experiment with a deterministic item evaluator and max_concurrency=1.",
+    "runtime_integration": "No runtime application file was changed. The evaluator is separate from the privacy-safe licenceiq.question span and its nested provider observations."
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "route": "gpt-5.6-sol/high",
+      "outcome": "Initial implementation completed; focused verification found one over-broad test assertion and strict protocol typing errors."
+    },
+    {
+      "attempt": 2,
+      "route": "gpt-5.6-sol/high",
+      "outcome": "Narrowed the privacy assertion to forbidden fields and explicitly adapted the installed SDK client/evaluation types; focused checks passed."
+    }
+  ],
+  "verification": {
+    "network": "No live Langfuse call was attempted and no credentials were used.",
+    "focused_tests": "passed",
+    "ruff": "passed",
+    "mypy": "passed",
+    "offline_command": "passed with seven of seven cases and zero failures",
+    "disabled_export_probe": "stopped before SDK use because the dedicated opt-in was absent"
+  },
+  "limitations": [
+    "This foundation scores only the status/citation-count envelope; it does not establish answer correctness, citation support, retrieval quality, OCR quality, or production accuracy.",
+    "A live Langfuse experiment remains unverified until an operator explicitly enables export with valid credentials.",
+    "The separate fictional golden-dataset proposal remains subject to its own approval and is not created or uploaded by this work unit."
+  ]
+}

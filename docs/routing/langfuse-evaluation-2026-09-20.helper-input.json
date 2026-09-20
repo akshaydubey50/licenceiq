@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 1,
+    "reasoning": 1,
+    "verification": 1
+  },
+  "evidence": {
+    "uncertainty": "Current Langfuse Python SDK v4 local-experiment and evaluator contracts required focused documentation and installed-signature inspection.",
+    "scope": "One standalone evaluation script, focused offline tests, and owned evaluation/routing documentation are connected; runtime application files remain unchanged.",
+    "reasoning": "The evaluator must classify status and citation-count envelopes deterministically while preventing private content, identifiers, and secrets from entering experiment data.",
+    "verification": "New focused tests must prove deterministic scoring, sanitized fixed fixtures, disabled defaults, complete opt-in requirements, and the run_experiment adapter without network access."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

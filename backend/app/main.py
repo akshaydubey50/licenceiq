@@ -139,6 +139,7 @@ def create_app(
         service_embeddings,
         service_query_rewrite,
         question_guardrail if question_guardrail is not None else build_question_guardrail(config),
+        telemetry,
         now_provider,
     )
 

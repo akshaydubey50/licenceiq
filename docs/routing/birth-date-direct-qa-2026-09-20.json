@@ -1,0 +1,50 @@
+{
+  "work_unit": "Grounded natural birth-date and multi-field Q&A repair",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 2,
+      "verification": 1
+    },
+    "total": 5,
+    "risk_override": "strong minimum because answer correctness depends on immutable, cited licence facts",
+    "recommendation": {
+      "tier": "strong",
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    }
+  },
+  "dispatch": [
+    {
+      "scope": "Independent regression tests for natural birth-date and combined direct facts",
+      "owner": "qa_intent_regressions",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection"
+    },
+    {
+      "scope": "Direct-field intent and multi-field selection implementation",
+      "owner": "coordinator",
+      "mode": "direct execution",
+      "outcome": "accepted after coordinator inspection and focused verification"
+    }
+  ],
+  "behavior": {
+    "birth_date": "A temporal question containing 'born' resolves directly to date of birth, while a birthplace question remains outside this mapping.",
+    "multiple_fields": "An explicit request for multiple standard extracted facts returns all requested immutable values with their individual citations in source-field order.",
+    "ambiguity": "Multiple dynamic labels that share an alias remain ambiguous and continue through grounded retrieval.",
+    "privacy_configuration": "LANGFUSE_CAPTURE_IO=false now parses as a normal environment boolean while any attempt to enable capture remains rejected."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "verification": {
+    "regressions": "Natural birth-date and combined DOB/date-of-issue cases passed with immutable citations and no provider calls.",
+    "question_suite": "Worker run: 81 question-service tests passed.",
+    "privacy_configuration": "LANGFUSE_CAPTURE_IO=false parsing and rejection of true are covered by observability tests.",
+    "runtime": "Rebuilt Docker backend returned HTTP 200 from /health; Docker frontend returned HTTP 200."
+  },
+  "status": "complete"
+}
