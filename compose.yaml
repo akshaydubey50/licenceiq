@@ -1,0 +1,39 @@
+name: licenceiq-local
+
+# Local-only infrastructure for the durable profile. The application itself remains
+# host-run during Phase 10A, so the existing fictional-sample demo needs no Docker.
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_DB: ${LICENCEIQ_POSTGRES_DATABASE:?set LICENCEIQ_POSTGRES_DATABASE in infra/.env}
+      POSTGRES_USER: ${LICENCEIQ_POSTGRES_USER:?set LICENCEIQ_POSTGRES_USER in infra/.env}
+      POSTGRES_PASSWORD: ${LICENCEIQ_POSTGRES_PASSWORD:?set LICENCEIQ_POSTGRES_PASSWORD in infra/.env}
+    ports:
+      - "127.0.0.1:${LICENCEIQ_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - licenceiq-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${LICENCEIQ_MINIO_ROOT_USER:?set LICENCEIQ_MINIO_ROOT_USER in infra/.env}
+      MINIO_ROOT_PASSWORD: ${LICENCEIQ_MINIO_ROOT_PASSWORD:?set LICENCEIQ_MINIO_ROOT_PASSWORD in infra/.env}
+    ports:
+      - "127.0.0.1:${LICENCEIQ_MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${LICENCEIQ_MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - licenceiq-minio:/data
+    restart: unless-stopped
+
+volumes:
+  licenceiq-postgres:
+  licenceiq-minio:

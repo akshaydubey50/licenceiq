@@ -1,0 +1,70 @@
+{
+  "title": "Phase 10A durable platform foundation",
+  "assessment": {
+    "scores": {
+      "uncertainty": 2,
+      "scope": 2,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "evidence": {
+      "uncertainty": "The durable metadata and session contracts had to be defined while Docker was unavailable on the development host.",
+      "scope": "The work spans local MinIO/PostgreSQL composition, dependencies, migrations, relational ownership, vector schema, configuration documentation, and future application seams.",
+      "reasoning": "The schema must preserve document isolation, evidence provenance, expiry, cross-service lifecycle recovery, opaque external identities, and session revocation without changing the local demo.",
+      "verification": "Offline migration SQL, schema tests, full backend regression, static checks, and a future live MinIO/PostgreSQL smoke are required."
+    },
+    "score": 8,
+    "risk": "high",
+    "recommended_tier": "strong",
+    "route_helper": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "action": "candidate"
+    }
+  },
+  "execution": {
+    "attempt": 1,
+    "escalations": 0,
+    "workers": [
+      {
+        "task": "/root/phase10_architecture",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "scope": "read-only storage, retrieval, session, lifecycle, and guardrail design review",
+        "outcome": "completed"
+      },
+      {
+        "task": "/root/phase10_database_foundation",
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "scope": "SQLAlchemy/Alembic/pgvector schema, migration, dependency lock, and offline migration tests",
+        "outcome": "completed"
+      }
+    ],
+    "coordinator_scope": "loopback-only compose configuration, ignored secret template, local setup guide, durable-profile and guardrail documentation, integration review"
+  },
+  "validation": {
+    "passed": [
+      "231 backend tests passed offline",
+      "Ruff lint passed",
+      "Ruff format check passed for 53 files",
+      "mypy passed for 38 source files",
+      "3 focused offline Alembic migration tests passed",
+      "Alembic offline SQL contains pgvector extension, document table, and vector(256) embedding column"
+    ],
+    "not_run": [
+      "docker compose config and startup",
+      "live PostgreSQL migration",
+      "live MinIO private-bucket smoke",
+      "durable repository, pgvector retrieval, and session-revocation application integration"
+    ],
+    "reason": "Docker is not installed on the current development host; the Phase 10A application boundary deliberately leaves the existing demo profile unchanged."
+  },
+  "remaining": [
+    "Add independently selectable blob and metadata backends.",
+    "Implement transactionally versioned PostgreSQL document repository and MinIO lifecycle reconciliation.",
+    "Move lexical and semantic retrieval to the durable evidence tables.",
+    "Create and validate active session records, logout, and revocation enforcement.",
+    "Run live private-infrastructure smoke checks after Docker Desktop is available."
+  ]
+}

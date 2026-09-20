@@ -119,6 +119,8 @@ Only `OPENAI_API_KEY` is required for the complete AI workflow. The local defaul
 
 All optional limits, model settings, JWT settings, and MinIO settings are documented in [`.env.example`](.env.example). See the [private JWT/MinIO setup guide](docs/PHASE_9_LOCAL_SETUP.md) before enabling those optional modes. Never put secrets in `NEXT_PUBLIC_*` variables.
 
+The [Phase 10A durable foundation](docs/PHASE_10_PLATFORM_FOUNDATION.md) adds a local MinIO and PostgreSQL/pgvector compose configuration plus a versioned database schema. The application does not select that profile yet, so the fictional-sample demo still starts without Docker.
+
 ## Access modes
 
 | Mode | Use case | Credential boundary |
@@ -159,7 +161,7 @@ Document -> parsing/OCR -> page text and evidence blocks
 
 Latest local verification completed successfully:
 
-- 228 offline backend tests passed, including hybrid guest/JWT isolation and invalid-credential checks.
+- 231 offline backend tests passed, including hybrid guest/JWT isolation, invalid-credential checks, and durable-schema migration checks.
 - Ruff, formatting, strict mypy, and dependency-lock checks passed.
 - ESLint, TypeScript, Prettier, and production frontend builds passed in capability, hybrid, and JWT modes.
 - Live OCR, extraction, review/save, direct Q&A, paraphrased retrieval, and safe abstention were exercised using the supplied fictional samples.
