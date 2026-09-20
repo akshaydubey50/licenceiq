@@ -57,6 +57,7 @@ class ReadingService:
         """Return cached evidence or perform one bounded, nonduplicated read."""
         initial = self.document_service.authorized_record(document_id, authorization)
         if initial.reading is not None:
+            self.document_service.clear_chat_after_reread(initial)
             return initial.reading
         self._begin_read(document_id)
         capacity_acquired = self._capacity.acquire(blocking=False)
@@ -67,6 +68,7 @@ class ReadingService:
             # Recheck after claiming the slot so a just-completed read becomes a cache hit.
             record = self.document_service.authorized_record(document_id, authorization)
             if record.reading is not None:
+                self.document_service.clear_chat_after_reread(record)
                 return record.reading
             try:
                 content = self.repository.read_content(record)
@@ -95,6 +97,7 @@ class ReadingService:
             saved = self.repository.get(document_id)
             if saved is None or saved.reading is None:
                 raise self.document_service.not_found()
+            self.document_service.clear_chat_after_reread(saved)
             return saved.reading
         finally:
             self._capacity.release()

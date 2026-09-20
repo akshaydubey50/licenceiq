@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "Existing Compose already runs local PostgreSQL/pgvector and MinIO, while backend/frontend container contracts and least-privilege MinIO bootstrap must be defined.",
+    "scope": "The change spans Compose orchestration, backend/frontend image builds, migration ordering, MinIO access policy, ignored local credentials, and documentation.",
+    "reasoning": "Browser API routing, startup preflight, Alembic migrations, health ordering, persistent volumes, and MinIO application credentials must align without copying secrets into images.",
+    "verification": "Compose validation, image builds, container health, migration inspection, and a fictional-sample end-to-end workflow require live Docker infrastructure."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

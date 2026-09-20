@@ -119,10 +119,21 @@ export interface QuestionCitation {
   page_number: number;
 }
 
+/** One prior user question supplied only to resolve conversational references. */
+export interface QuestionHistoryEntry {
+  question: string;
+}
+
+export interface QuestionRequest {
+  question: string;
+  /** At most three previous questions from this document's isolated transcript. */
+  history?: QuestionHistoryEntry[];
+}
+
 export interface QuestionResult {
   document_id: string;
   question: string;
-  status: "ANSWERED" | "UNAVAILABLE";
+  status: "ANSWERED" | "UNAVAILABLE" | "OUT_OF_SCOPE";
   answer: string;
   citations: QuestionCitation[];
   created_at: string;
@@ -137,4 +148,26 @@ export interface Document {
   created_at: string;
   page_count: number | null;
   warnings: string[];
+}
+
+/** Bounded authenticated document listing returned for one account. */
+export interface DocumentListResponse {
+  documents: Document[];
+}
+
+/** Persisted verified turns for one authenticated document. */
+export interface ChatHistoryResponse {
+  document_id: string;
+  turns: QuestionResult[];
+}
+
+/** One isolated upload-style child returned from a composite licence image. */
+export interface DocumentSplitChild extends Document {
+  access_token?: string | null;
+}
+
+/** Exactly two child documents derived from one retained parent document. */
+export interface DocumentSplitResponse {
+  parent_document_id: string;
+  documents: [DocumentSplitChild, DocumentSplitChild];
 }

@@ -17,6 +17,7 @@ from app.persistence.models import EMBEDDING_DIMENSIONS
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_TABLES = {
     "app_users",
+    "local_credentials",
     "auth_sessions",
     "documents",
     "readings",
@@ -27,6 +28,7 @@ EXPECTED_TABLES = {
     "reviews",
     "embedding_sets",
     "block_embeddings",
+    "chat_turns",
 }
 
 
@@ -45,17 +47,36 @@ def _upgrade_sql() -> str:
     return output.getvalue()
 
 
-def test_migration_history_has_one_initial_head() -> None:
+def test_migration_history_is_a_linear_chain() -> None:
     script = ScriptDirectory.from_config(_alembic_config())
 
-    assert script.get_heads() == ["20260920_0001"]
+    assert script.get_heads() == ["20260920_0004"]
     assert script.get_base() == "20260920_0001"
+    assert script.get_revision("20260920_0002").down_revision == "20260920_0001"
+    assert script.get_revision("20260920_0003").down_revision == "20260920_0002"
+    assert script.get_revision("20260920_0004").down_revision == "20260920_0003"
 
 
 def test_metadata_declares_the_complete_durable_schema() -> None:
     assert set(metadata.tables) == EXPECTED_TABLES
     assert EMBEDDING_DIMENSIONS == 256
     assert str(metadata.tables["block_embeddings"].c.embedding.type) == "VECTOR(256)"
+    chat_foreign_keys = tuple(metadata.tables["chat_turns"].foreign_key_constraints)
+    assert len(chat_foreign_keys) == 1
+    assert chat_foreign_keys[0].ondelete == "CASCADE"
+
+
+def test_document_delete_or_expiry_cascades_through_readings_to_chat_turns() -> None:
+    reading_foreign_key = next(
+        constraint
+        for constraint in metadata.tables["readings"].foreign_key_constraints
+        if constraint.referred_table.name == "documents"
+    )
+    chat_foreign_key = next(iter(metadata.tables["chat_turns"].foreign_key_constraints))
+
+    assert reading_foreign_key.ondelete == "CASCADE"
+    assert chat_foreign_key.referred_table.name == "readings"
+    assert chat_foreign_key.ondelete == "CASCADE"
 
 
 def test_offline_upgrade_sql_contains_security_and_isolation_contracts() -> None:
@@ -68,6 +89,8 @@ def test_offline_upgrade_sql_contains_security_and_isolation_contracts() -> None
     assert "CREATE EXTENSION IF NOT EXISTS vector" in sql
     assert sql.index("CREATE EXTENSION IF NOT EXISTS vector") < sql.index("CREATE TABLE app_users")
     assert "ck_documents_exactly_one_access_principal" in sql
+    assert "ck_local_credentials_password_hash_argon2" in sql
+    assert "uq_local_credentials_username" in sql
     assert "uq_documents_object_key" in sql
     assert "uq_documents_capability_hash" in sql
     assert "ck_documents_content_sha256" in sql
@@ -81,6 +104,9 @@ def test_offline_upgrade_sql_contains_security_and_isolation_contracts() -> None
     assert "uq_embedding_sets_reading_model_dimensions" in sql
     assert "fk_extract_links_block" in sql
     assert "fk_block_embeddings_block" in sql
+    assert "fk_chat_turns_reading" in sql
+    assert "ck_chat_turns_status_allowed" in sql
+    assert "CREATE INDEX ix_chat_turns_document_created" in sql
     assert "embedding vector(256) not null" in compact_sql_lower
     assert (
         "generated always as (to_tsvector('simple', coalesce(text, ''))) stored"

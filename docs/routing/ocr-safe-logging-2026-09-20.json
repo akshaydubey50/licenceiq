@@ -1,0 +1,8 @@
+{
+  "work_unit": "Safe OCR status-code logging regression",
+  "date": "2026-09-20",
+  "assessment": {"scores": {"uncertainty": 1, "scope": 1, "reasoning": 1, "verification": 1}, "total": 4, "risk": "high"},
+  "routing": {"recommendation": "strong due to privacy impact", "actual_dispatch": {"model": "gpt-5.6-sol", "effort": "high", "attempt": 1}, "escalations_used": 0},
+  "outcome": "Alembic test configuration disabled the OCR logger before its caplog assertion. The OCR test re-enables and captures only that logger. Production logging stays limited to exception type, HTTP status, and request ID; it never emits provider bodies or document content.",
+  "verification": "Migration-to-OCR sequence, full OCR tests, then the full backend suite, Ruff, formatter, and mypy passed."
+}

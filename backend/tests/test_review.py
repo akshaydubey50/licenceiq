@@ -350,7 +350,7 @@ def test_expiry_wins_over_late_save(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert repository.get(record.document_id).review is None
 
 
-@pytest.mark.parametrize("changed_part", ["record", "extraction"])
+@pytest.mark.parametrize("changed_part", ["record", "owner", "extraction"])
 def test_repository_rejects_replaced_record_or_extraction(
     tmp_path: Path,
     changed_part: str,
@@ -360,6 +360,8 @@ def test_repository_rejects_replaced_record_or_extraction(
     current = snapshot
     if changed_part == "record":
         current = current.model_copy(update={"storage_key": str(uuid4())})
+    elif changed_part == "owner":
+        current = current.model_copy(update={"owner_subject": "different-user"})
     else:
         current = current.model_copy(
             update={"extraction": extraction(snapshot.document_id, full_name="OTHER HOLDER")}

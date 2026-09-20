@@ -10,7 +10,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.document import ExtractionResult, ReadingResult, ReviewState, SemanticIndex
+from app.models.document import (
+    ExtractionResult,
+    QuestionResult,
+    ReadingResult,
+    ReviewState,
+    SemanticIndex,
+)
 from app.repositories.object_store import ObjectStoreError, PrivateObjectStore
 
 
@@ -67,6 +73,36 @@ class DocumentRepository(Protocol):
     def cleanup_expired(self, now: datetime) -> int: ...
 
 
+class ChatPersistenceUnavailable(RuntimeError):
+    """Durable signed-chat storage is absent or temporarily unreachable."""
+
+
+class DurableChatRepository(Protocol):
+    """PostgreSQL-only operations for owned-document continuation."""
+
+    def list_owned(
+        self, owner_subject: str, now: datetime, *, limit: int
+    ) -> tuple[StoredDocumentRecord, ...]: ...
+
+    def save_chat_turn_if_current(
+        self,
+        snapshot: StoredDocumentRecord,
+        result: QuestionResult,
+        now: datetime,
+    ) -> bool: ...
+
+    def get_chat_history(
+        self,
+        document_id: str,
+        owner_subject: str,
+        now: datetime,
+        *,
+        limit: int,
+    ) -> tuple[QuestionResult, ...]: ...
+
+    def clear_chat_history(self, document_id: str, owner_subject: str) -> None: ...
+
+
 class FilesystemDocumentRepository:
     """Persist bytes under generated keys and metadata in non-public sidecars."""
 
@@ -114,14 +150,9 @@ class FilesystemDocumentRepository:
             return False
         with self._lock:
             current = self._get_unlocked(snapshot.document_id)
-            if (
-                current is None
-                or current.expires_at <= now
-                or current.storage_key != snapshot.storage_key
-                or current.created_at != snapshot.created_at
-                or current.access_token_hash != snapshot.access_token_hash
-            ):
+            if not self._matches_snapshot(current, snapshot, now):
                 return False
+            assert current is not None
             if current.reading is not None:
                 return True
             updated = current.model_copy(update={"reading": reading, "semantic_index": None})
@@ -140,11 +171,8 @@ class FilesystemDocumentRepository:
         with self._lock:
             current = self._get_unlocked(snapshot.document_id)
             if (
-                current is None
-                or current.expires_at <= now
-                or current.storage_key != snapshot.storage_key
-                or current.created_at != snapshot.created_at
-                or current.access_token_hash != snapshot.access_token_hash
+                not self._matches_snapshot(current, snapshot, now)
+                or current is None
                 or current.reading != snapshot.reading
             ):
                 return False
@@ -166,11 +194,8 @@ class FilesystemDocumentRepository:
         with self._lock:
             current = self._get_unlocked(snapshot.document_id)
             if (
-                current is None
-                or current.expires_at <= now
-                or current.storage_key != snapshot.storage_key
-                or current.created_at != snapshot.created_at
-                or current.access_token_hash != snapshot.access_token_hash
+                not self._matches_snapshot(current, snapshot, now)
+                or current is None
                 or current.reading != snapshot.reading
             ):
                 return False
@@ -192,11 +217,8 @@ class FilesystemDocumentRepository:
         with self._lock:
             current = self._get_unlocked(snapshot.document_id)
             if (
-                current is None
-                or current.expires_at <= now
-                or current.storage_key != snapshot.storage_key
-                or current.created_at != snapshot.created_at
-                or current.access_token_hash != snapshot.access_token_hash
+                not self._matches_snapshot(current, snapshot, now)
+                or current is None
                 or current.extraction != snapshot.extraction
             ):
                 return False
@@ -240,6 +262,22 @@ class FilesystemDocumentRepository:
             return StoredDocumentRecord.model_validate_json(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
+
+    @staticmethod
+    def _matches_snapshot(
+        current: StoredDocumentRecord | None,
+        snapshot: StoredDocumentRecord,
+        now: datetime,
+    ) -> bool:
+        """Require the immutable storage and access principal to remain unchanged."""
+        return (
+            current is not None
+            and current.expires_at > now
+            and current.storage_key == snapshot.storage_key
+            and current.created_at == snapshot.created_at
+            and current.access_token_hash == snapshot.access_token_hash
+            and current.owner_subject == snapshot.owner_subject
+        )
 
     def _metadata_path(self, document_id: str) -> Path:
         normalized = str(UUID(document_id))
@@ -407,8 +445,13 @@ class MinioDocumentRepository:
             for document_id in self._metadata_store.list_keys():
                 record = self._get_unlocked(document_id)
                 if record is not None and record.expires_at <= now:
-                    self.delete(record)
-                    removed += 1
+                    try:
+                        self.delete(record)
+                    except ObjectStoreError:
+                        # Keep retryable metadata without blocking unrelated documents.
+                        continue
+                    else:
+                        removed += 1
             return removed
 
     def _get_unlocked(self, document_id: str) -> StoredDocumentRecord | None:

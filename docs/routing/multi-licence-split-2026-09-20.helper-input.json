@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The user selected separate reviews; the existing warning proves multiple licences but source geometry must be bounded.",
+    "scope": "New backend child-document endpoint and frontend multi-document state must work together.",
+    "reasoning": "Child credential inheritance, immutable evidence, isolated review state, preview cleanup, and Q&A document scoping interact.",
+    "verification": "Focused backend source/capability tests plus frontend static checks are available; browser/provider flow requires local confirmation."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

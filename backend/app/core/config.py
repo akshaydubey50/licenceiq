@@ -31,10 +31,13 @@ class Settings(BaseSettings):
     bootstrap_username: str = ""
     bootstrap_password_hash: SecretStr = Field(default=SecretStr(""))
     bootstrap_subject: str = ""
+    self_registration_enabled: bool = False
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
     )
     document_storage_backend: Literal["filesystem", "minio"] = "filesystem"
+    document_metadata_backend: Literal["object_store", "postgres"] = "object_store"
+    database_url: SecretStr = Field(default=SecretStr(""))
     document_storage_dir: Path = PROJECT_ROOT / "backend" / ".data" / "documents"
     minio_endpoint: str = ""
     minio_access_key: SecretStr = Field(default=SecretStr(""))
@@ -49,6 +52,25 @@ class Settings(BaseSettings):
     max_image_dimension: int = Field(default=12_000, ge=1)
     max_image_pixels: int = Field(default=40_000_000, ge=1)
     openai_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="OPENAI_API_KEY")
+    langfuse_tracing_enabled: bool = Field(
+        default=False,
+        validation_alias="LANGFUSE_TRACING_ENABLED",
+    )
+    langfuse_public_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias="LANGFUSE_PUBLIC_KEY",
+    )
+    langfuse_secret_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias="LANGFUSE_SECRET_KEY",
+    )
+    langfuse_base_url: str = Field(default="", validation_alias="LANGFUSE_BASE_URL")
+    # Licence contents are too sensitive for prompt/completion capture. This invariant
+    # intentionally rejects attempts to enable it through environment configuration.
+    langfuse_capture_io: Literal[False] = Field(
+        default=False,
+        validation_alias="LANGFUSE_CAPTURE_IO",
+    )
     ocr_model: str = Field(default="gpt-4.1-mini", min_length=1)
     ocr_timeout_seconds: float = Field(default=45, ge=1, le=120)
     reading_timeout_seconds: float = Field(default=120, ge=1, le=120)
@@ -71,6 +93,10 @@ class Settings(BaseSettings):
     question_embedding_timeout_seconds: float = Field(default=15, ge=1, le=120)
     question_embedding_max_blocks: int = Field(default=256, ge=1, le=2000)
     question_embedding_max_characters: int = Field(default=100_000, ge=1, le=200_000)
+    question_rewrite_model: str = Field(default="gpt-4.1-mini", min_length=1)
+    question_rewrite_timeout_seconds: float = Field(default=8, ge=1, le=30)
+    question_rewrite_max_input_characters: int = Field(default=2500, ge=500, le=5000)
+    question_rewrite_max_output_tokens: int = Field(default=200, ge=1, le=1000)
     question_guardrails_enabled: bool = True
     question_guardrail_timeout_seconds: float = Field(default=2, ge=0.1, le=10)
     max_concurrent_questions: int = Field(default=4, ge=1, le=32)
@@ -106,6 +132,26 @@ class Settings(BaseSettings):
             raise ValueError("The request limit must be larger than the file limit.")
         return limit
 
+    @field_validator("langfuse_base_url")
+    @classmethod
+    def validate_langfuse_base_url(cls, value: str) -> str:
+        """Accept an explicit HTTP(S) Langfuse root without embedded credentials."""
+        normalized = value.strip().rstrip("/")
+        if not normalized:
+            return ""
+        parsed = urlsplit(normalized)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("Langfuse base URL must be an HTTP(S) URL without credentials.")
+        _ = parsed.port
+        return normalized
+
     @model_validator(mode="after")
     def validate_private_deployment_settings(self) -> "Settings":
         """Require complete, non-local safeguards before enabling protected modes."""
@@ -121,25 +167,44 @@ class Settings(BaseSettings):
             ):
                 raise ValueError("MinIO access and secret keys are required for MinIO storage.")
 
+        if self.document_metadata_backend == "postgres":
+            if self.document_storage_backend != "minio":
+                raise ValueError(
+                    "PostgreSQL document metadata requires MinIO document storage "
+                    "for original bytes."
+                )
+            if not self.database_url.get_secret_value():
+                raise ValueError("PostgreSQL document metadata requires LICENCEIQ_DATABASE_URL.")
+            if self.question_embedding_dimensions != 256:
+                raise ValueError(
+                    "PostgreSQL vector persistence requires question embedding dimensions of 256."
+                )
+
         if self.auth_mode in {"jwt", "hybrid"}:
             signing_key = self.jwt_signing_key.get_secret_value()
             if len(signing_key.encode("utf-8")) < 32:
                 raise ValueError("JWT signing key must contain at least 32 bytes.")
-            if (
-                not all(
-                    value.strip()
-                    for value in (
-                        self.jwt_issuer,
-                        self.jwt_audience,
-                        self.bootstrap_username,
-                        self.bootstrap_subject,
-                    )
-                )
-                or not self.bootstrap_password_hash.get_secret_value()
-            ):
+            bootstrap_values = (
+                self.bootstrap_username,
+                self.bootstrap_subject,
+                self.bootstrap_password_hash.get_secret_value(),
+            )
+            bootstrap_is_configured = all(value.strip() for value in bootstrap_values)
+            if any(value.strip() for value in bootstrap_values) and not bootstrap_is_configured:
+                raise ValueError("Bootstrap account settings must be complete when configured.")
+            if not self.self_registration_enabled and not bootstrap_is_configured:
                 raise ValueError(
-                    "JWT and hybrid modes require complete bootstrap account and token settings."
+                    "JWT and hybrid modes require a complete bootstrap account unless "
+                    "self-registration is enabled."
                 )
+
+        if self.self_registration_enabled:
+            if self.environment == "production":
+                raise ValueError("Self-registration is not available in production.")
+            if self.auth_mode not in {"jwt", "hybrid"}:
+                raise ValueError("Self-registration requires JWT authentication.")
+            if self.document_metadata_backend != "postgres":
+                raise ValueError("Self-registration requires durable PostgreSQL identity storage.")
 
         if self.environment == "production":
             # Public guest access needs additional abuse controls and operational safeguards
@@ -148,9 +213,28 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires JWT authentication.")
             if self.document_storage_backend != "minio":
                 raise ValueError("Production requires MinIO document storage.")
+            if self.document_metadata_backend != "postgres":
+                raise ValueError("Production requires PostgreSQL document metadata.")
+            if not self.database_url.get_secret_value():
+                raise ValueError("Production requires LICENCEIQ_DATABASE_URL.")
+            if not self.minio_secure:
+                raise ValueError("Production requires secure MinIO transport.")
             if any(urlsplit(origin).scheme != "https" for origin in self.cors_origins):
                 raise ValueError("Production CORS origins must use HTTPS.")
+            if self.langfuse_ready and urlsplit(self.langfuse_base_url).scheme != "https":
+                raise ValueError("Production Langfuse telemetry requires HTTPS.")
         return self
+
+    @property
+    def langfuse_ready(self) -> bool:
+        """Enable export only when explicitly requested with a complete key pair and host."""
+        return self.langfuse_tracing_enabled and all(
+            (
+                self.langfuse_public_key.get_secret_value().strip(),
+                self.langfuse_secret_key.get_secret_value().strip(),
+                self.langfuse_base_url,
+            )
+        )
 
 
 @lru_cache

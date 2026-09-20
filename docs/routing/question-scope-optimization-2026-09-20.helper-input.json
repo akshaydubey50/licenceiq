@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The response policy is clear, but boundaries between related, ambiguous, and unrelated phrasing must avoid suppressing valid document questions.",
+    "scope": "Question service classification, fixed response contract, frontend decoder copy, and offline regressions must agree.",
+    "reasoning": "The classifier must prefer grounded retrieval for plausible licence questions and prevent irrelevant questions from reaching document search or providers.",
+    "verification": "Provider-bypass and related-question regression coverage plus frontend static checks are required."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

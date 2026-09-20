@@ -30,8 +30,19 @@ function authMode(): AuthMode {
   return value;
 }
 
+function selfRegistrationEnabled(): boolean {
+  const value = process.env.NEXT_PUBLIC_SELF_REGISTRATION_ENABLED ?? "false";
+  if (value !== "true" && value !== "false") {
+    throw new Error(
+      "NEXT_PUBLIC_SELF_REGISTRATION_ENABLED must be true or false.",
+    );
+  }
+  return value === "true";
+}
+
 export const publicEnv = {
   apiBaseUrl: apiBaseUrl(),
   authMode: authMode(),
+  selfRegistrationEnabled: selfRegistrationEnabled(),
   showDevelopmentStatus: process.env.NODE_ENV === "development",
 } as const;

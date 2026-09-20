@@ -1,0 +1,30 @@
+{
+  "work_unit": "Grounded address-paraphrase relevance for document Q&A",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 2, "scope": 2, "reasoning": 2, "verification": 2},
+    "total": 8,
+    "risk": "high",
+    "recommendation": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "dispatch": [
+    {
+      "scope": "Narrow direct-address intent matching and grounded question regressions",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection and focused verification"
+    }
+  ],
+  "finding": {
+    "privacy_safe_database_summary": "The newest extracted record has an evidence-backed address. It contains no occupation/work/profession field label or matching source term, so occupation questions must abstain.",
+    "behavior": "Residence-location and holder-lives paraphrases deterministically resolve to the immutable extracted address with its source citation. Generic location remains ambiguous and continues through grounded retrieval rather than being forced to address."
+  },
+  "verification": {
+    "backend": "Focused questions, rewrite adapter, answer adapter, and embeddings adapter tests passed. Ruff, format, mypy, and diff checks passed.",
+    "runtime": "The local API was restarted after the verified change."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

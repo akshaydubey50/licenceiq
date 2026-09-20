@@ -142,6 +142,92 @@ def test_configuration_rejects_unsafe_origins(origin: str) -> None:
         Settings(_env_file=None, cors_origins=[origin])
 
 
+def test_postgres_metadata_profile_requires_minio_database_and_fixed_vector_size() -> None:
+    durable_values = {
+        "environment": "test",
+        "document_storage_backend": "minio",
+        "document_metadata_backend": "postgres",
+        "minio_endpoint": "127.0.0.1:9000",
+        "minio_access_key": "test-access-key",
+        "minio_secret_key": "test-secret-key",
+        "database_url": "postgresql+psycopg://user:password@127.0.0.1:5432/licenceiq",
+    }
+
+    settings = Settings(_env_file=None, **durable_values)
+    assert settings.document_metadata_backend == "postgres"
+    assert settings.question_embedding_dimensions == 256
+
+    with pytest.raises(ValidationError, match="LICENCEIQ_DATABASE_URL"):
+        Settings(
+            _env_file=None,
+            **{key: value for key, value in durable_values.items() if key != "database_url"},
+        )
+    with pytest.raises(ValidationError, match="requires MinIO document storage"):
+        Settings(
+            _env_file=None,
+            document_metadata_backend="postgres",
+            database_url=durable_values["database_url"],
+        )
+    with pytest.raises(ValidationError, match="embedding dimensions of 256"):
+        Settings(_env_file=None, **durable_values, question_embedding_dimensions=128)
+
+
+def test_self_registration_is_opt_in_durable_and_never_production() -> None:
+    assert Settings(_env_file=None).self_registration_enabled is False
+
+    durable_auth = {
+        "environment": "test",
+        "auth_mode": "jwt",
+        "jwt_signing_key": "offline-test-signing-key-that-is-at-least-32-bytes",
+        "bootstrap_username": "candidate",
+        "bootstrap_password_hash": "$argon2id$offline",
+        "bootstrap_subject": "bootstrap-user",
+        "document_storage_backend": "minio",
+        "document_metadata_backend": "postgres",
+        "minio_endpoint": "127.0.0.1:9000",
+        "minio_access_key": "test-access-key",
+        "minio_secret_key": "test-secret-key",
+        "database_url": "postgresql+psycopg://user:password@127.0.0.1:5432/licenceiq",
+        "self_registration_enabled": True,
+    }
+    settings = Settings(_env_file=None, **durable_auth)
+    assert settings.self_registration_enabled is True
+
+    registration_only_settings = Settings(
+        _env_file=None,
+        **{
+            key: value
+            for key, value in durable_auth.items()
+            if key
+            not in {
+                "bootstrap_username",
+                "bootstrap_password_hash",
+                "bootstrap_subject",
+            }
+        },
+    )
+    assert registration_only_settings.self_registration_enabled is True
+
+    with pytest.raises(ValidationError, match="durable PostgreSQL identity storage"):
+        Settings(
+            _env_file=None,
+            **{
+                **durable_auth,
+                "document_metadata_backend": "object_store",
+                "database_url": "",
+            },
+        )
+    with pytest.raises(ValidationError, match="not available in production"):
+        Settings(
+            _env_file=None,
+            **{
+                **durable_auth,
+                "environment": "production",
+                "cors_origins": ["https://licenceiq.example"],
+            },
+        )
+
+
 def test_missing_fields_are_immutable_and_do_not_share_state() -> None:
     first = ExtractedLicence(document_id="one")
     second = ExtractedLicence(document_id="two")

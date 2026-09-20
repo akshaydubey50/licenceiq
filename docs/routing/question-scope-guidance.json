@@ -1,0 +1,39 @@
+{
+  "work_unit": "Professional out-of-scope guidance for uploaded-driving-licence questions",
+  "assessment": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 1,
+    "verification": 2,
+    "total": 6,
+    "risk": "medium",
+    "evidence": {
+      "uncertainty": "The requested response and boundary were clear, but the classifier must avoid blocking plausible document questions.",
+      "scope": "The API response contract, question service, tests, frontend decoder, transcript view, and TypeScript type change together.",
+      "reasoning": "Explicit unrelated topics need a deterministic early exit while ambiguous questions remain grounded in document evidence.",
+      "verification": "The change needs provider-bypass coverage, schema invariants, frontend static checks, and the full backend suite."
+    }
+  },
+  "recommendation": {
+    "tier": "strong",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  },
+  "dispatch": {
+    "scope": "backend question contract, service, and tests",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "attempt": 1,
+    "escalations": 0
+  },
+  "outcome": {
+    "implementation": "OUT_OF_SCOPE returns fixed LicenceIQ guidance before direct lookup, embeddings, or the answer provider. The frontend validates and displays the new distinct result.",
+    "checks": [
+      "55 focused question tests passed",
+      "full backend suite passed",
+      "Ruff and strict mypy passed",
+      "frontend typecheck, lint, and formatting passed"
+    ],
+    "limitations": "The detector intentionally classifies only explicit unrelated topics. Ambiguous questions continue through grounded retrieval and may return the usual unavailable response."
+  }
+}

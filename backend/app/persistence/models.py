@@ -35,6 +35,24 @@ app_users = sa.Table(
     sa.CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
 )
 
+local_credentials = sa.Table(
+    "local_credentials",
+    metadata,
+    sa.Column("user_id", UUID, primary_key=True),
+    sa.Column("normalized_username", sa.String(64), nullable=False),
+    sa.Column("password_hash", sa.String(512), nullable=False),
+    sa.Column("created_at", TIMESTAMPTZ, nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", TIMESTAMPTZ, nullable=False, server_default=sa.func.now()),
+    sa.ForeignKeyConstraint(["user_id"], ["app_users.id"], ondelete="CASCADE"),
+    sa.UniqueConstraint("normalized_username", name="uq_local_credentials_username"),
+    sa.CheckConstraint(
+        "normalized_username ~ '^[a-z0-9][a-z0-9._-]{2,63}$'",
+        name="username_format",
+    ),
+    sa.CheckConstraint("password_hash LIKE '$argon2%'", name="password_hash_argon2"),
+    sa.CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
+)
+
 auth_sessions = sa.Table(
     "auth_sessions",
     metadata,
@@ -63,6 +81,7 @@ documents = sa.Table(
     metadata,
     sa.Column("id", UUID, primary_key=True),
     sa.Column("owner_user_id", UUID),
+    sa.Column("owner_subject", sa.String(320)),
     sa.Column("capability_hash", sa.LargeBinary(SHA256_LENGTH)),
     sa.Column("object_key", sa.String(512), nullable=False),
     sa.Column("content_sha256", sa.LargeBinary(SHA256_LENGTH), nullable=False),
@@ -72,6 +91,7 @@ documents = sa.Table(
     sa.Column("page_count", sa.Integer),
     sa.Column("lifecycle_state", sa.String(32), nullable=False, server_default="PENDING_UPLOAD"),
     sa.Column("version", sa.Integer, nullable=False, server_default="1"),
+    sa.Column("record_json", JSONB, nullable=False),
     sa.Column("expires_at", TIMESTAMPTZ, nullable=False),
     sa.Column("created_at", TIMESTAMPTZ, nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", TIMESTAMPTZ, nullable=False, server_default=sa.func.now()),
@@ -79,8 +99,15 @@ documents = sa.Table(
     sa.UniqueConstraint("object_key", name="uq_documents_object_key"),
     sa.UniqueConstraint("capability_hash", name="uq_documents_capability_hash"),
     sa.CheckConstraint(
-        "(owner_user_id IS NOT NULL) <> (capability_hash IS NOT NULL)",
+        "(owner_subject IS NOT NULL) <> (capability_hash IS NOT NULL)",
         name="exactly_one_access_principal",
+    ),
+    sa.CheckConstraint(
+        "(owner_user_id IS NOT NULL) = (owner_subject IS NOT NULL)",
+        name="owner_user_requires_subject",
+    ),
+    sa.CheckConstraint(
+        "owner_subject IS NULL OR owner_subject <> ''", name="owner_subject_nonempty"
     ),
     sa.CheckConstraint("octet_length(capability_hash) = 32", name="capability_sha256"),
     sa.CheckConstraint("octet_length(content_sha256) = 32", name="content_sha256"),
@@ -99,6 +126,47 @@ documents = sa.Table(
         name="lifecycle_state_allowed",
     ),
     sa.CheckConstraint("version >= 1", name="version_positive"),
+    sa.CheckConstraint("jsonb_typeof(record_json) = 'object'", name="record_json_object"),
+    sa.CheckConstraint(
+        "record_json ->> 'document_id' IS NOT DISTINCT FROM id::text",
+        name="record_document_id_matches",
+    ),
+    sa.CheckConstraint(
+        "record_json ->> 'storage_key' IS NOT DISTINCT FROM object_key",
+        name="record_object_key_matches",
+    ),
+    sa.CheckConstraint(
+        "record_json ->> 'owner_subject' IS NOT DISTINCT FROM owner_subject",
+        name="record_owner_subject_matches",
+    ),
+    sa.CheckConstraint(
+        "decode(record_json ->> 'access_token_hash', 'hex') IS NOT DISTINCT FROM capability_hash",
+        name="record_capability_hash_matches",
+    ),
+    sa.CheckConstraint(
+        "record_json ->> 'filename' IS NOT DISTINCT FROM safe_filename",
+        name="record_filename_matches",
+    ),
+    sa.CheckConstraint(
+        "record_json ->> 'mime_type' IS NOT DISTINCT FROM mime_type",
+        name="record_mime_type_matches",
+    ),
+    sa.CheckConstraint(
+        "(record_json ->> 'size_bytes')::bigint IS NOT DISTINCT FROM size_bytes",
+        name="record_size_matches",
+    ),
+    sa.CheckConstraint(
+        "(record_json ->> 'page_count')::integer IS NOT DISTINCT FROM page_count",
+        name="record_page_count_matches",
+    ),
+    sa.CheckConstraint(
+        "(record_json ->> 'created_at')::timestamptz IS NOT DISTINCT FROM created_at",
+        name="record_created_at_matches",
+    ),
+    sa.CheckConstraint(
+        "(record_json ->> 'expires_at')::timestamptz IS NOT DISTINCT FROM expires_at",
+        name="record_expires_at_matches",
+    ),
     sa.CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
     sa.CheckConstraint("expires_at > created_at", name="expiry_after_creation"),
 )
@@ -129,6 +197,32 @@ readings = sa.Table(
 )
 sa.Index("ix_readings_document_created", readings.c.document_id, readings.c.created_at)
 
+chat_turns = sa.Table(
+    "chat_turns",
+    metadata,
+    sa.Column("id", UUID, primary_key=True),
+    sa.Column("document_id", UUID, nullable=False),
+    sa.Column("reading_sha256", sa.LargeBinary(SHA256_LENGTH), nullable=False),
+    sa.Column("question", sa.String(500), nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("answer", sa.String(4096), nullable=False),
+    sa.Column("citations_json", JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")),
+    sa.Column("created_at", TIMESTAMPTZ, nullable=False),
+    sa.ForeignKeyConstraint(
+        ["document_id", "reading_sha256"],
+        ["readings.document_id", "readings.reading_sha256"],
+        ondelete="CASCADE",
+    ),
+    sa.CheckConstraint("octet_length(reading_sha256) = 32", name="reading_sha256"),
+    sa.CheckConstraint("question <> ''", name="question_nonempty"),
+    sa.CheckConstraint("answer <> ''", name="answer_nonempty"),
+    sa.CheckConstraint(
+        "status IN ('ANSWERED', 'UNAVAILABLE', 'OUT_OF_SCOPE')", name="status_allowed"
+    ),
+    sa.CheckConstraint("jsonb_typeof(citations_json) = 'array'", name="citations_array"),
+)
+sa.Index("ix_chat_turns_document_created", chat_turns.c.document_id, chat_turns.c.created_at)
+
 reading_pages = sa.Table(
     "reading_pages",
     metadata,
@@ -137,6 +231,7 @@ reading_pages = sa.Table(
     sa.Column("page_number", sa.Integer, nullable=False),
     sa.Column("text", sa.Text, nullable=False, server_default=""),
     sa.Column("text_sha256", sa.LargeBinary(SHA256_LENGTH), nullable=False),
+    sa.Column("method", sa.String(32), nullable=False),
     sa.Column(
         "search_vector",
         postgresql.TSVECTOR(),
@@ -147,6 +242,7 @@ reading_pages = sa.Table(
     sa.UniqueConstraint("reading_id", "page_number", name="uq_reading_pages_source_order"),
     sa.CheckConstraint("page_number >= 1", name="page_number_positive"),
     sa.CheckConstraint("octet_length(text_sha256) = 32", name="text_sha256"),
+    sa.CheckConstraint("method IN ('native_text', 'ocr')", name="method_allowed"),
 )
 sa.Index("ix_reading_pages_search", reading_pages.c.search_vector, postgresql_using="gin")
 

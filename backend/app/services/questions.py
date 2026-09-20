@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 from app.core.errors import ApplicationError
 from app.models.document import (
+    OUT_OF_SCOPE_ANSWER,
     Evidence,
     ExtractedField,
     ExtractionResult,
@@ -32,7 +33,16 @@ from app.providers.answer import (
     QuestionContext,
 )
 from app.providers.embeddings import EmbeddingProvider, EmbeddingRequest, EmbeddingResult
-from app.repositories.documents import DocumentRepository, StoredDocumentRecord
+from app.providers.query_rewrite import (
+    QueryRewriteProvider,
+    QueryRewriteRequest,
+    QueryRewriteResult,
+)
+from app.repositories.documents import (
+    ChatPersistenceUnavailable,
+    DocumentRepository,
+    StoredDocumentRecord,
+)
 from app.schemas.common import ErrorCode
 from app.services.documents import DocumentCredential, DocumentService
 from app.services.question_guardrails import (
@@ -102,6 +112,158 @@ _RELATIONSHIP_TERMS = {
     "spouse",
     "wife",
 }
+_DYNAMIC_FACT_ALIASES: tuple[tuple[tuple[str, ...], frozenset[str]], ...] = (
+    (("body height", "height", "how tall"), frozenset({"body height", "height", "stature"})),
+    (("blood group", "blood type"), frozenset({"blood group", "blood type"})),
+    (
+        ("father name", "father s name", "name of father", "who is the father"),
+        frozenset({"father", "father name", "father s name", "name of father"}),
+    ),
+    (
+        ("mother name", "mother s name", "name of mother", "who is the mother"),
+        frozenset({"mother", "mother name", "mother s name", "name of mother"}),
+    ),
+    (
+        ("spouse name", "spouse s name", "husband name", "wife name"),
+        frozenset(
+            {
+                "spouse",
+                "spouse name",
+                "spouse s name",
+                "husband name",
+                "wife name",
+            }
+        ),
+    ),
+    (
+        ("guardian name", "guardian s name", "name of guardian"),
+        frozenset({"guardian", "guardian name", "guardian s name", "name of guardian"}),
+    ),
+    (("restriction", "restrictions"), frozenset({"restriction", "restrictions"})),
+    (("endorsement", "endorsements"), frozenset({"endorsement", "endorsements"})),
+)
+_GENERIC_OTHER_LABELS = {
+    "date",
+    "detail",
+    "details",
+    "information",
+    "name",
+    "number",
+    "other",
+    "value",
+}
+_MAX_DIRECT_LABEL_TERMS = 8
+_LICENCE_SCOPE_TERMS = {
+    "address",
+    "authority",
+    "authorised",
+    "authorized",
+    "birth",
+    "class",
+    "classes",
+    "cov",
+    "dl",
+    "dob",
+    "document",
+    "drive",
+    "driving",
+    "endorsement",
+    "expiry",
+    "expiration",
+    "expire",
+    "expires",
+    "holder",
+    "issue",
+    "issued",
+    "issuing",
+    "licence",
+    "license",
+    "live",
+    "occupation",
+    "person",
+    "profession",
+    "restriction",
+    "restrictions",
+    "rto",
+    "valid",
+    "validity",
+    "vehicle",
+    "vehicles",
+    "vision",
+    "work",
+    "working",
+}
+_LICENCE_SCOPE_PHRASES = (
+    "do for a living",
+    "doing for a living",
+    "job title",
+    "place of residence",
+    "resident location",
+    "residence location",
+    "residential location",
+    "where does holder live",
+    "where does the holder live",
+)
+_OBVIOUSLY_UNRELATED_TERMS = {
+    "bake",
+    "baking",
+    "climate",
+    "cook",
+    "cooking",
+    "cricket",
+    "currency",
+    "forecast",
+    "football",
+    "humidity",
+    "ingredients",
+    "javascript",
+    "joke",
+    "movie",
+    "photosynthesis",
+    "planet",
+    "population",
+    "president",
+    "python",
+    "rain",
+    "recipe",
+    "recipes",
+    "snow",
+    "song",
+    "temperature",
+    "weather",
+}
+_OBVIOUSLY_UNRELATED_PHRASES = (
+    "capital of",
+    "largest ocean",
+    "prime minister",
+    "speed of light",
+    "tallest mountain",
+    "who discovered",
+    "who invented",
+    "who wrote",
+)
+_ADDRESS_RETRIEVAL_TERMS = frozenset({"address", "residence", "residential"})
+_RETRIEVAL_SYNONYM_GROUPS: tuple[frozenset[str], ...] = (
+    frozenset({"licence", "license", "dl", "number", "no"}),
+    frozenset({"holder", "name", "person"}),
+    frozenset({"birth", "dob", "born"}),
+    frozenset({"issue", "issued", "authority", "rto"}),
+    frozenset({"expiry", "expiration", "expire", "expires", "valid", "validity"}),
+    _ADDRESS_RETRIEVAL_TERMS,
+    frozenset({"vehicle", "vehicles", "class", "classes", "category", "cov"}),
+    frozenset(
+        {
+            "endorsement",
+            "endorsements",
+            "restriction",
+            "restrictions",
+            "condition",
+            "conditions",
+        }
+    ),
+    frozenset({"vision", "eyesight", "corrective", "lens", "lenses"}),
+)
+_RRF_RANK_CONSTANT = 60
 
 
 class QuestionService:
@@ -114,6 +276,7 @@ class QuestionService:
         document_service: DocumentService,
         answer_provider: AnswerProvider,
         embedding_provider: EmbeddingProvider,
+        query_rewrite_provider: QueryRewriteProvider,
         question_guardrail: QuestionGuardrail,
         now_provider: Callable[[], datetime] | None = None,
         monotonic_provider: Callable[[], float] | None = None,
@@ -123,6 +286,7 @@ class QuestionService:
         self.document_service = document_service
         self.answer_provider = answer_provider
         self.embedding_provider = embedding_provider
+        self.query_rewrite_provider = query_rewrite_provider
         self.question_guardrail = question_guardrail
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
         self.monotonic_provider = monotonic_provider or time.monotonic
@@ -136,7 +300,7 @@ class QuestionService:
         authorization: DocumentCredential,
         request: QuestionRequest,
     ) -> QuestionResult:
-        """Answer one question without saving the request, result, or provider context."""
+        """Answer one question and save only a validated eligible signed-user result."""
         initial = self.document_service.authorized_record(document_id, authorization)
         self._require_reading(initial)
         self._require_extraction(initial)
@@ -153,6 +317,13 @@ class QuestionService:
             deadline = self.monotonic_provider() + self.settings.question_timeout_seconds
             self._guard_input(request.question, deadline)
 
+            if self._is_out_of_scope(request.question):
+                result = self._out_of_scope(snapshot.document_id, request.question)
+                self._check_deadline(deadline)
+                self._ensure_current(snapshot, authorization)
+                self._persist_signed_result(snapshot, result)
+                return result
+
             direct = self._direct_fields(request.question, extraction)
             if direct is not None:
                 result = self._direct_result(
@@ -161,14 +332,17 @@ class QuestionService:
                 result = self._guard_output(result, deadline)
                 self._check_deadline(deadline)
                 self._ensure_current(snapshot, authorization)
+                self._persist_signed_result(snapshot, result)
                 return result
 
+            retrieval_query = self._retrieval_query(request, deadline)
             semantic_index = self._semantic_index(snapshot, reading, deadline)
-            selected = self._retrieve(request.question, reading, semantic_index, deadline)
+            selected = self._retrieve(retrieval_query, reading, semantic_index, deadline)
             if not selected:
                 result = self._unavailable(snapshot.document_id, request.question)
                 self._check_deadline(deadline)
                 self._ensure_current(snapshot, authorization)
+                self._persist_signed_result(snapshot, result)
                 return result
 
             try:
@@ -192,10 +366,28 @@ class QuestionService:
             )
             result = self._guard_output(result, deadline)
             self._ensure_current(snapshot, authorization)
+            self._persist_signed_result(snapshot, result)
             return result
         finally:
             self._capacity.release()
             self._end_question(document_id)
+
+    def _persist_signed_result(
+        self, snapshot: StoredDocumentRecord, result: QuestionResult
+    ) -> None:
+        """Best-effort save after all grounding, citation, guardrail, and freshness checks."""
+        if (
+            snapshot.owner_subject is None
+            or self.settings.document_metadata_backend != "postgres"
+            or not hasattr(self.repository, "save_chat_turn_if_current")
+        ):
+            return
+        try:
+            self.repository.save_chat_turn_if_current(snapshot, result, self.now_provider())
+        except ChatPersistenceUnavailable:
+            # The question remains usable while the dedicated history endpoints expose
+            # persistence unavailability to the frontend.
+            return
 
     @staticmethod
     def _require_reading(record: StoredDocumentRecord) -> ReadingResult:
@@ -248,7 +440,17 @@ class QuestionService:
                 ),
                 (licence.date_of_expiry,),
             ),
-            (("address",), (licence.address,)),
+            (
+                (
+                    "address",
+                    "resident location",
+                    "residence location",
+                    "residential location",
+                    "where does holder live",
+                    "where does the holder live",
+                ),
+                (licence.address,),
+            ),
             (
                 (
                     "vehicle class",
@@ -276,10 +478,30 @@ class QuestionService:
         ):
             matches.append((licence.full_name,))
 
+        other_by_label: dict[str, list[ExtractedField]] = {}
         for name, field in licence.other_information.items():
-            phrase = QuestionService._normalize_phrase(name)
-            if phrase and QuestionService._contains_phrase(normalized, phrase):
-                matches.append((field,))
+            label = QuestionService._normalize_phrase(name)
+            if label:
+                other_by_label.setdefault(label, []).append(field)
+        other_matches: set[str] = set()
+        for question_aliases, label_aliases in _DYNAMIC_FACT_ALIASES:
+            if any(
+                QuestionService._contains_phrase(normalized, alias) for alias in question_aliases
+            ):
+                other_matches.update(label for label in other_by_label if label in label_aliases)
+
+        for label in other_by_label:
+            terms = label.split()
+            if (
+                label not in _GENERIC_OTHER_LABELS
+                and len(terms) <= _MAX_DIRECT_LABEL_TERMS
+                and QuestionService._contains_phrase(normalized, label)
+            ):
+                other_matches.add(label)
+
+        matches.extend(
+            (field,) for label in sorted(other_matches) for field in other_by_label[label]
+        )
 
         if asks_relationship_name and not matches:
             # Never reinterpret a missing relationship name as the holder's name.
@@ -381,20 +603,19 @@ class QuestionService:
 
     def _retrieve(
         self,
-        question: str,
+        retrieval_query: str,
         reading: ReadingResult,
         semantic_index: SemanticIndex | None,
         deadline: float,
     ) -> tuple[QuestionBlock, ...]:
-        query_terms = set(self._terms(question)) - _STOP_WORDS
+        query_terms = self._expanded_retrieval_terms(retrieval_query)
         if semantic_index is None:
             return ()
-        result = self._embed(EmbeddingRequest(texts=(question,)), deadline)
+        result = self._embed(EmbeddingRequest(texts=(retrieval_query,)), deadline)
         query_vector = self._validated_vectors(result, 1)[0]
         vectors_by_id = dict(zip(semantic_index.block_ids, semantic_index.vectors, strict=True))
 
-        ranked: list[tuple[float, int, float, int, Evidence]] = []
-        order = 0
+        candidates: list[tuple[int, Evidence, int, float]] = []
         for page in reading.pages:
             for evidence in page.blocks:
                 block_terms = self._terms(evidence.source_text)
@@ -403,11 +624,34 @@ class QuestionService:
                 vector = vectors_by_id.get(block_id) if block_id is not None else None
                 if vector is not None:
                     semantic_score = self._cosine(query_vector, vector)
-                    combined_score = float(matches) + semantic_score
-                    ranked.append((-combined_score, -matches, -semantic_score, order, evidence))
-                elif matches:
-                    ranked.append((-float(matches), -matches, 0.0, order, evidence))
-                order += 1
+                else:
+                    semantic_score = -1.0
+                candidates.append((len(candidates), evidence, matches, semantic_score))
+
+        lexical_rank = {
+            order: rank
+            for rank, (order, _evidence, _matches, _semantic) in enumerate(
+                sorted(
+                    (item for item in candidates if item[2] > 0),
+                    key=lambda item: (-item[2], item[0]),
+                ),
+                start=1,
+            )
+        }
+        semantic_rank = {
+            order: rank
+            for rank, (order, _evidence, _matches, _semantic) in enumerate(
+                sorted(candidates, key=lambda item: (-item[3], item[0])),
+                start=1,
+            )
+        }
+        ranked: list[tuple[float, int, int, int, Evidence]] = []
+        for order, evidence, matches, _semantic_score in candidates:
+            reciprocal_score = 1.0 / (_RRF_RANK_CONSTANT + semantic_rank[order])
+            lexical_position = lexical_rank.get(order)
+            if lexical_position is not None:
+                reciprocal_score += 1.0 / (_RRF_RANK_CONSTANT + lexical_position)
+            ranked.append((-reciprocal_score, -matches, semantic_rank[order], order, evidence))
         ranked.sort(key=lambda item: item[:4])
 
         selected: list[QuestionBlock] = []
@@ -435,6 +679,41 @@ class QuestionService:
                 raise self._too_large() from None
             selected_characters = next_size
         return tuple(selected)
+
+    def _retrieval_query(self, request: QuestionRequest, deadline: float) -> str:
+        """Rewrite only conversational questions and safely retain the original on failure."""
+        if not request.history:
+            return request.question
+        try:
+            rewrite_request = QueryRewriteRequest(
+                question=request.question,
+                previous_questions=tuple(item.question for item in request.history[-3:]),
+            )
+            result = self.query_rewrite_provider.rewrite(
+                rewrite_request,
+                timeout_seconds=min(
+                    self.settings.question_rewrite_timeout_seconds,
+                    self._remaining(deadline),
+                ),
+            )
+            if not isinstance(result, QueryRewriteResult):
+                result = QueryRewriteResult.model_validate(result)
+            return result.query
+        except Exception:
+            # Rewriting is retrieval assistance only. Never turn its failure into a Q&A failure.
+            return request.question
+
+    @staticmethod
+    def _expanded_retrieval_terms(value: str) -> set[str]:
+        """Expand a small licence-domain vocabulary before deterministic lexical ranking."""
+        terms = QuestionService._terms(value) - _STOP_WORDS
+        expanded = set(terms)
+        for group in _RETRIEVAL_SYNONYM_GROUPS:
+            if terms & group:
+                expanded.update(group)
+        if "location" in terms and terms & {"resident", "residence", "residential"}:
+            expanded.update(_ADDRESS_RETRIEVAL_TERMS)
+        return expanded
 
     def _bounded_index_evidence(self, reading: ReadingResult) -> tuple[Evidence, ...]:
         selected: list[Evidence] = []
@@ -641,6 +920,33 @@ class QuestionService:
             answer=SAFE_UNAVAILABLE_ANSWER,
             citations=(),
             created_at=self.now_provider(),
+        )
+
+    def _out_of_scope(self, document_id: str, question: str) -> QuestionResult:
+        return QuestionResult(
+            document_id=document_id,
+            question=question,
+            status=QuestionStatus.OUT_OF_SCOPE,
+            answer=OUT_OF_SCOPE_ANSWER,
+            citations=(),
+            created_at=self.now_provider(),
+        )
+
+    @staticmethod
+    def _is_out_of_scope(question: str) -> bool:
+        """Recognize only explicit unrelated topics; ambiguous prompts stay grounded."""
+        normalized = QuestionService._normalize_phrase(question)
+        terms = set(normalized.split())
+        if terms & _LICENCE_SCOPE_TERMS or any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in _LICENCE_SCOPE_PHRASES
+        ):
+            return False
+        if terms & _OBVIOUSLY_UNRELATED_TERMS:
+            return True
+        return any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in _OBVIOUSLY_UNRELATED_PHRASES
         )
 
     @staticmethod

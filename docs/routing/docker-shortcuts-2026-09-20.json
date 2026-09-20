@@ -1,0 +1,34 @@
+{
+  "work_unit": "Add one-command local Docker shortcuts",
+  "assessment": {
+    "scores": {
+      "uncertainty": 0,
+      "scope": 1,
+      "reasoning": 0,
+      "verification": 1
+    },
+    "total": 2,
+    "risk": "low",
+    "recommendation": {
+      "tier": "fast",
+      "model": "gpt-5.6-luna",
+      "effort": "low"
+    }
+  },
+  "execution": {
+    "mode": "direct coordinator implementation",
+    "workers": [],
+    "attempts": 1,
+    "files": [
+      "scripts/docker.ps1",
+      "Makefile",
+      "README.md"
+    ]
+  },
+  "behavior": {
+    "windows": "The PowerShell helper defaults to a complete build-and-wait startup and supports start, stop, status, logs, and volume-preserving down actions.",
+    "portable": "The Makefile exposes matching Docker Compose targets for systems with GNU Make.",
+    "safety": "Neither shortcut includes Docker volume deletion."
+  },
+  "status": "implemented"
+}

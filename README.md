@@ -39,8 +39,8 @@ The local application supports one licence per upload. It intentionally refuses 
 | Frontend | Next.js App Router, React, TypeScript, Tailwind CSS |
 | Backend | Python, FastAPI, Pydantic, pydantic-settings, Uvicorn |
 | File processing | python-multipart, Pillow, pypdf, pypdfium2 |
-| AI | OpenAI Responses API with `gpt-4.1-mini` for vision OCR, extraction, and grounded answers; `text-embedding-3-small` for semantic retrieval; optional local NeMo Guardrails policy checks for Q&A |
-| Storage and access | Private filesystem storage for the local demo; optional MinIO/S3-compatible repository, guest document capabilities, and JWT ownership |
+| AI | OpenAI Responses API with `gpt-4.1-mini` for vision OCR, extraction, and grounded answers; `text-embedding-3-small` for semantic retrieval; optional local NeMo Guardrails policy checks for Q&A; optional privacy-safe Langfuse operation telemetry |
+| Storage and access | Private filesystem demo profile; durable profile with MinIO for original bytes and PostgreSQL/pgvector for metadata, evidence, vectors, principals, and revocable JWT sessions |
 | Quality checks | pytest, Ruff, mypy, ESLint, TypeScript, Prettier, Next.js production build |
 
 ## Architecture
@@ -88,8 +88,12 @@ Start the backend in one terminal:
 ```powershell
 cd backend
 uv sync --frozen --python 3.11
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\scripts\start-local.ps1
 ```
+
+The launcher makes a short, document-free OpenAI request before starting the API. It confirms that the local process can reach the configured OCR model and stops before uploads are accepted when the key, model, quota, or outbound network access is unavailable. It never sends a licence page or prints the API key. Use `-SkipOpenAIProbe` only when you deliberately want to run the UI without AI processing.
+
+Run this script from a normal local PowerShell terminal. A restricted sandbox or container may block outbound OpenAI access; the preflight then fails clearly instead of leaving a backend that reports a generic OCR error later.
 
 Start the frontend in another terminal:
 
@@ -101,10 +105,49 @@ npm.cmd run dev
 
 Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The development header should show **Backend connected**. Use one fictional individual sample from [`samples/`](samples/) to test the full workflow.
 
-The copied environment files run the original no-login local demo. To show both **Continue as guest** and **Demo sign-in**, complete the bootstrap credential setup in the [guest and JWT guide](docs/PHASE_9_LOCAL_SETUP.md), then set both `LICENCEIQ_AUTH_MODE` and `NEXT_PUBLIC_AUTH_MODE` to `hybrid`.
+The copied environment files run the original no-login local demo. To show both **Continue as guest** and account access, complete the protected-mode setup in the [guest and JWT guide](docs/PHASE_9_LOCAL_SETUP.md), then set both `LICENCEIQ_AUTH_MODE` and `NEXT_PUBLIC_AUTH_MODE` to `hybrid`. The same guide explains the opt-in, local-only sign-up flow.
 
 - API health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 - Development API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### Run the full Docker stack
+
+Docker Compose runs the frontend, FastAPI API, PostgreSQL with pgvector, and private MinIO together. The backend applies migrations, uses a bucket-scoped MinIO application account, and runs the document-free OpenAI preflight before it accepts uploads.
+
+Keep the ignored root `.env` for application settings and `OPENAI_API_KEY`. Keep the ignored `infra/.env` for PostgreSQL and MinIO credentials; add the separate `LICENCEIQ_MINIO_APP_ACCESS_KEY` and `LICENCEIQ_MINIO_APP_SECRET_KEY` values from [the template](infra/.env.example) if they are not already present.
+
+```powershell
+docker compose --env-file .env --env-file infra/.env up -d --build --wait
+docker compose --env-file .env --env-file infra/.env ps
+```
+
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000). Container ports bind only to `127.0.0.1`; MinIO stays at `127.0.0.1:9000` and its console at `127.0.0.1:9001`.
+
+For later starts with no configuration change, use:
+
+```powershell
+docker compose --env-file .env --env-file infra/.env up -d --wait
+```
+
+After changing `.env` or application code, rebuild the affected image:
+
+```powershell
+docker compose --env-file .env --env-file infra/.env up -d --build --wait
+```
+
+`docker compose start` is suitable only when unchanged containers were stopped; it does not recreate containers after a configuration or image change. Docker reads the authentication mode from the root `.env` and builds the matching public browser mode from it: the default local capability demo works for one browser, while `hybrid` enables **Continue as guest** and account sign-up/sign-in when the JWT settings in [the guest and JWT guide](docs/PHASE_9_LOCAL_SETUP.md) are present.
+
+Stop containers while retaining PostgreSQL and MinIO data with `docker compose --env-file .env --env-file infra/.env stop`. Use `down` only when you want to remove containers; do not add `--volumes` unless you intentionally want to erase local documents, metadata, vectors, and sessions.
+
+### One-command Docker shortcuts
+
+On Windows, use the included PowerShell helper. It runs the full build-and-start command by default:
+
+```powershell
+.\scripts\docker.ps1
+```
+
+Use `-Action start`, `stop`, `status`, `logs`, or `down` for the corresponding Compose operation. The `down` action intentionally preserves Docker volumes. A [Makefile](Makefile) provides the same `make up`, `make start`, `make stop`, `make status`, `make logs`, and `make down` targets for environments with GNU Make installed.
 
 ## Environment variables
 
@@ -115,12 +158,21 @@ Only `OPENAI_API_KEY` is required for the complete AI workflow. The local defaul
 | `OPENAI_API_KEY` | Yes for OCR/extraction/Q&A | Server-only key for OpenAI document processing. |
 | `NEXT_PUBLIC_API_BASE_URL` | No | Browser API address; defaults to `http://127.0.0.1:8000`. |
 | `NEXT_PUBLIC_AUTH_MODE` | No | `capability` for the ready-to-run local demo; `hybrid` for guest plus demo sign-in; `jwt` for a signed-in workspace. It must match the backend mode. |
-| `LICENCEIQ_AUTH_MODE` and `LICENCEIQ_DOCUMENT_STORAGE_BACKEND` | No | Backend switches for guest capability, JWT/hybrid access, and optional MinIO storage. |
+| `NEXT_PUBLIC_SELF_REGISTRATION_ENABLED` | No | Controls whether the browser offers the local sign-up route. It must match the backend setting and defaults to `false`. |
+| `LICENCEIQ_AUTH_MODE` | No | Backend switch for guest capability, JWT, or hybrid access. |
+| `LICENCEIQ_SELF_REGISTRATION_ENABLED` | No | Enables local account creation only for the development durable PostgreSQL profile. It defaults to `false` and is rejected in production. |
+| `LICENCEIQ_DOCUMENT_STORAGE_BACKEND` | No | Selects private filesystem or MinIO storage for original bytes. |
+| `LICENCEIQ_DOCUMENT_METADATA_BACKEND` and `LICENCEIQ_DATABASE_URL` | No | Select `postgres` to keep metadata, evidence, vectors, principals, and sessions in PostgreSQL. This mode requires MinIO byte storage and a PostgreSQL `psycopg` URL. |
 | `LICENCEIQ_QUESTION_GUARDRAILS_ENABLED` | No | Enables local NeMo input/output policy checks for Q&A. It is `true` by default; set it to `false` only for local troubleshooting. |
+| `LANGFUSE_TRACING_ENABLED` | No | Enables optional Langfuse operation telemetry only when a public key, secret key, and base URL are also present. It defaults to `false`. |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASE_URL` | No | Server-only Langfuse project credentials and Cloud/self-hosted root URL. Never commit keys. |
+| `LANGFUSE_CAPTURE_IO` | No | Privacy invariant fixed to `false`; LicenceIQ never exports prompts, responses, document content, user data, identifiers, credentials, or raw errors. |
 
 All optional limits, model settings, JWT settings, and MinIO settings are documented in [`.env.example`](.env.example). See the [private JWT/MinIO setup guide](docs/PHASE_9_LOCAL_SETUP.md) before enabling those optional modes. Never put secrets in `NEXT_PUBLIC_*` variables.
 
-The [Phase 10A durable foundation](docs/PHASE_10_PLATFORM_FOUNDATION.md) adds a local MinIO and PostgreSQL/pgvector compose configuration plus a versioned database schema. The application does not select that profile yet, so the fictional-sample demo still starts without Docker.
+See the [Langfuse setup and privacy contract](docs/LANGFUSE.md) before enabling telemetry. The repository includes offline coverage for the tracing boundary, but no live trace audit is claimed without user-supplied project credentials.
+
+The [Phase 10B durable runtime](docs/PHASE_10B_DURABLE_RUNTIME.md) adds the local MinIO/PostgreSQL profile. It is opt-in: the copied environment file remains the zero-infrastructure demo, while the durable profile requires Docker and its database migration.
 
 ## Access modes
 
@@ -128,9 +180,9 @@ The [Phase 10A durable foundation](docs/PHASE_10_PLATFORM_FOUNDATION.md) adds a 
 | --- | --- | --- |
 | `capability` | Default local assessment demo | Upload returns one high-entropy document capability, retained only in browser memory. |
 | `hybrid` | Interview demonstration of both paths | Guests use `X-Document-Capability`; signed-in users use a short-lived JWT. The two credential types cannot access each other’s documents. |
-| `jwt` | Authenticated local/production foundation | A configured bootstrap account receives a short-lived JWT; each document is bound to its token subject. |
+| `jwt` | Authenticated local/production foundation | A configured bootstrap account receives a short-lived JWT; the local durable profile can also opt into development-only accounts. Each document is bound to its token subject. |
 
-`hybrid` is deliberately blocked in production because a public guest service also needs rate limits, malware scanning, monitoring, and other operational controls. The bootstrap account demonstrates ownership; it is not a user-registration system.
+`hybrid` is deliberately blocked in production because a public guest service also needs rate limits, malware scanning, monitoring, and other operational controls. Local self-registration also remains unavailable in production; it is an interview/demo feature, not public account management.
 
 ## AI and RAG approach
 
@@ -164,7 +216,7 @@ Document -> parsing/OCR -> page text and evidence blocks
 
 Latest local verification completed successfully:
 
-- 231 offline backend tests passed, including hybrid guest/JWT isolation, invalid-credential checks, and durable-schema migration checks.
+- The full offline backend suite passed, including hybrid guest/JWT isolation, durable-session checks, and durable-schema migration checks.
 - Ruff, formatting, strict mypy, and dependency-lock checks passed.
 - ESLint, TypeScript, Prettier, and production frontend builds passed in capability, hybrid, and JWT modes.
 - Live OCR, extraction, review/save, direct Q&A, paraphrased retrieval, and safe abstention were exercised using the supplied fictional samples.
@@ -194,14 +246,14 @@ Detailed evidence is available in the [phase reports](docs/), without adding the
 - Licence authenticity, portrait/signature identity, QR validation, and legal permission inference are out of scope.
 - Live verification covers the supplied fictional samples; it is not a broad accuracy benchmark.
 - Evidence navigation uses page and excerpt references. It cannot promise pixel-perfect OCR highlighting because the OCR provider supplies no reliable coordinates.
-- The local demo uses temporary private storage. Guest document capabilities and demo JWTs remain only in browser memory; the JWT mode has one bootstrap account rather than real account management.
-- MinIO support has not yet been exercised against a live server. The hybrid mode is for local demonstration and is intentionally rejected in production.
+- The local demo uses temporary private storage. Guest document capabilities and JWTs remain only in browser memory. Optional local accounts have no email verification, password reset, rate limits, audit trail, or public-production support.
+- The durable MinIO/PostgreSQL profile was exercised against the local containers with a provider-free test document. It is not a public deployment or a backup/recovery validation.
 - The optional NeMo policy rails use deterministic local rules for prompt-control and prompt-leakage patterns. They complement source grounding; they are not a replacement for broader content moderation or adversarial evaluation.
 - There is no public deployment. Local setup is provided, as allowed by the assessment brief.
 
 ## Production improvements
 
-Before public deployment, replace the bootstrap account with an OIDC identity provider such as Keycloak, use Auth.js in Next.js for its secure session layer, and validate provider JWTs through JWKS in FastAPI. Also add a persistent database for accounts and metadata, live private object storage, malware scanning, per-user rate limits, encrypted backups, audit logging, monitoring, and cross-worker processing coordination. A queue and isolated parsing workers would be appropriate only after real workload demands them.
+Before public deployment, replace the bootstrap/local-account flow with an OIDC identity provider such as Keycloak, use Auth.js in Next.js for its secure session layer, and validate provider JWTs through JWKS in FastAPI. Also add email verification and recovery, public abuse controls, malware scanning, per-user rate limits, encrypted backups, audit logging, monitoring, and cross-worker processing coordination. A queue and isolated parsing workers would be appropriate only after real workload demands them.
 
 ## AI-assisted development
 

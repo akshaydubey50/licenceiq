@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from minio import Minio
+from sqlalchemy.engine import Engine
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
@@ -18,6 +19,18 @@ from app.core.auth import AuthConfig, AuthService
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers, unexpected_error_response
 from app.core.upload_limit import UploadBodyLimitMiddleware
+from app.observability import (
+    NullTraceClient,
+    ObservedAnswerProvider,
+    ObservedEmbeddingProvider,
+    ObservedExtractionProvider,
+    ObservedOCRProvider,
+    ObservedQueryRewriteProvider,
+    TraceClient,
+    build_trace_client,
+)
+from app.persistence.database import create_sync_engine
+from app.persistence.sessions import AccountStore, PostgresSessionStore, SessionStore
 from app.providers.answer import AnswerProvider
 from app.providers.embeddings import EmbeddingProvider
 from app.providers.extraction import LLMProvider
@@ -26,12 +39,15 @@ from app.providers.openai_answer import OpenAIAnswerProvider
 from app.providers.openai_embeddings import OpenAIEmbeddingProvider
 from app.providers.openai_extraction import OpenAIExtractionProvider
 from app.providers.openai_ocr import OpenAIOCRProvider
+from app.providers.openai_query_rewrite import OpenAIQueryRewriteProvider
+from app.providers.query_rewrite import QueryRewriteProvider
 from app.repositories.documents import (
     DocumentRepository,
     FilesystemDocumentRepository,
     MinioDocumentRepository,
 )
 from app.repositories.object_store import MinioObjectStore
+from app.repositories.postgres_documents import PostgresDocumentRepository
 from app.services.documents import DocumentService
 from app.services.extraction import ExtractionService
 from app.services.question_guardrails import QuestionGuardrail, build_question_guardrail
@@ -47,42 +63,102 @@ def create_app(
     llm_provider: LLMProvider | None = None,
     answer_provider: AnswerProvider | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    query_rewrite_provider: QueryRewriteProvider | None = None,
     question_guardrail: QuestionGuardrail | None = None,
+    trace_client: TraceClient | None = None,
 ) -> FastAPI:
     """Compose configuration, storage, cross-cutting handlers, and routes."""
     config = settings if settings is not None else get_settings()
-    repository = _build_document_repository(config)
-    auth_service = _build_auth_service(config, now_provider)
+    database_engine = _build_database_engine(config)
+    repository = _build_document_repository(config, database_engine)
+    identity_store: PostgresSessionStore | None = (
+        PostgresSessionStore(database_engine) if database_engine is not None else None
+    )
+    auth_service = _build_auth_service(
+        config,
+        now_provider,
+        session_store=identity_store,
+        account_store=identity_store,
+    )
+    telemetry = trace_client if trace_client is not None else build_trace_client(config)
+    service_ocr: OCRProvider = (
+        ocr_provider if ocr_provider is not None else OpenAIOCRProvider(config)
+    )
+    service_extraction: LLMProvider = (
+        llm_provider if llm_provider is not None else OpenAIExtractionProvider(config)
+    )
+    service_answer: AnswerProvider = (
+        answer_provider if answer_provider is not None else OpenAIAnswerProvider(config)
+    )
+    service_embeddings: EmbeddingProvider = (
+        embedding_provider if embedding_provider is not None else OpenAIEmbeddingProvider(config)
+    )
+    service_query_rewrite: QueryRewriteProvider = (
+        query_rewrite_provider
+        if query_rewrite_provider is not None
+        else OpenAIQueryRewriteProvider(config)
+    )
+    if not isinstance(telemetry, NullTraceClient):
+        service_ocr = ObservedOCRProvider(service_ocr, telemetry, config.ocr_model)
+        service_extraction = ObservedExtractionProvider(
+            service_extraction,
+            telemetry,
+            config.extraction_model,
+        )
+        service_answer = ObservedAnswerProvider(service_answer, telemetry, config.question_model)
+        service_embeddings = ObservedEmbeddingProvider(
+            service_embeddings,
+            telemetry,
+            config.question_embedding_model,
+        )
+        service_query_rewrite = ObservedQueryRewriteProvider(
+            service_query_rewrite,
+            telemetry,
+            config.question_rewrite_model,
+        )
     document_service = DocumentService(config, repository, now_provider, auth_service)
     reading_service = ReadingService(
         config,
         repository,
         document_service,
-        ocr_provider if ocr_provider is not None else OpenAIOCRProvider(config),
+        service_ocr,
         now_provider,
     )
     extraction_service = ExtractionService(
         config,
         repository,
         document_service,
-        llm_provider if llm_provider is not None else OpenAIExtractionProvider(config),
+        service_extraction,
         now_provider,
     )
     question_service = QuestionService(
         config,
         repository,
         document_service,
-        answer_provider if answer_provider is not None else OpenAIAnswerProvider(config),
-        embedding_provider if embedding_provider is not None else OpenAIEmbeddingProvider(config),
+        service_answer,
+        service_embeddings,
+        service_query_rewrite,
         question_guardrail if question_guardrail is not None else build_question_guardrail(config),
         now_provider,
     )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        repository.initialize()
-        document_service.cleanup_expired()
-        yield
+        try:
+            repository.initialize()
+            document_service.cleanup_expired()
+            yield
+        finally:
+            try:
+                telemetry.flush()
+            except Exception:
+                pass
+            try:
+                telemetry.shutdown()
+            except Exception:
+                pass
+            if database_engine is not None:
+                database_engine.dispose()
 
     application = FastAPI(
         title=config.app_name,
@@ -97,6 +173,7 @@ def create_app(
     application.state.reading_service = reading_service
     application.state.extraction_service = extraction_service
     application.state.question_service = question_service
+    application.state.trace_client = telemetry
     if auth_service is not None:
         application.state.auth_service = auth_service
     application.add_middleware(UploadBodyLimitMiddleware, max_bytes=config.max_upload_request_bytes)
@@ -129,7 +206,16 @@ def create_app(
     return application
 
 
-def _build_document_repository(config: Settings) -> DocumentRepository:
+def _build_database_engine(config: Settings) -> Engine | None:
+    """Create a PostgreSQL engine only for the explicit durable metadata profile."""
+    if config.document_metadata_backend != "postgres":
+        return None
+    return create_sync_engine(config.database_url.get_secret_value())
+
+
+def _build_document_repository(
+    config: Settings, database_engine: Engine | None = None
+) -> DocumentRepository:
     """Select explicit local storage or a private MinIO repository from validated settings."""
     if config.document_storage_backend == "filesystem":
         return FilesystemDocumentRepository(config.document_storage_dir)
@@ -140,12 +226,21 @@ def _build_document_repository(config: Settings) -> DocumentRepository:
         secret_key=config.minio_secret_key.get_secret_value(),
         secure=config.minio_secure,
     )
+    content_store = MinioObjectStore(
+        client,
+        bucket=config.minio_bucket,
+        prefix=f"{config.minio_prefix}/content",
+    )
+    if config.document_metadata_backend == "postgres":
+        if database_engine is None:
+            raise ValueError("Durable document metadata requires a PostgreSQL engine.")
+        return PostgresDocumentRepository(
+            database_engine,
+            content_store,
+            owner_issuer=config.jwt_issuer,
+        )
     return MinioDocumentRepository(
-        MinioObjectStore(
-            client,
-            bucket=config.minio_bucket,
-            prefix=f"{config.minio_prefix}/content",
-        ),
+        content_store,
         MinioObjectStore(
             client,
             bucket=config.minio_bucket,
@@ -155,9 +250,12 @@ def _build_document_repository(config: Settings) -> DocumentRepository:
 
 
 def _build_auth_service(
-    config: Settings, now_provider: Callable[[], datetime] | None
+    config: Settings,
+    now_provider: Callable[[], datetime] | None,
+    session_store: SessionStore | None = None,
+    account_store: AccountStore | None = None,
 ) -> AuthService | None:
-    """Construct the bootstrap JWT service only when its protected mode is enabled."""
+    """Construct JWT auth with optional durable local identity storage."""
     if config.auth_mode == "capability":
         return None
     return AuthService(
@@ -169,8 +267,11 @@ def _build_auth_service(
             bootstrap_password_hash=config.bootstrap_password_hash,
             bootstrap_subject=config.bootstrap_subject,
             access_token_ttl_seconds=config.jwt_access_token_ttl_seconds,
+            self_registration_enabled=config.self_registration_enabled,
         ),
         now_provider=now_provider,
+        session_store=session_store,
+        account_store=account_store,
     )
 
 

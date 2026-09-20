@@ -43,7 +43,36 @@ LICENCEIQ_BOOTSTRAP_PASSWORD_HASH=<argon2-value>
 LICENCEIQ_BOOTSTRAP_SUBJECT=candidate-001
 ```
 
-The application has one configured bootstrap account for this assessment. It has no self-registration or refresh-token service.
+The application always retains one configured bootstrap account for local administration and demo access. It has no refresh-token service.
+
+## Enable optional local account registration
+
+Local sign-up is an opt-in development feature. It uses PostgreSQL to store an Argon2 password hash and opaque user subject, then creates the same short-lived, revocable JWT session as sign-in. It is disabled by default and rejected in production.
+
+It requires the durable MinIO/PostgreSQL profile and a JWT signing key. A bootstrap account remains optional when local registration is enabled. In the ignored root `.env`, set:
+
+```dotenv
+LICENCEIQ_AUTH_MODE=hybrid
+LICENCEIQ_JWT_SIGNING_KEY=<new-random-value>
+LICENCEIQ_DOCUMENT_STORAGE_BACKEND=minio
+LICENCEIQ_DOCUMENT_METADATA_BACKEND=postgres
+LICENCEIQ_SELF_REGISTRATION_ENABLED=true
+```
+
+In `frontend/.env.local`, set the matching public flags:
+
+```dotenv
+NEXT_PUBLIC_AUTH_MODE=hybrid
+NEXT_PUBLIC_SELF_REGISTRATION_ENABLED=true
+```
+
+Apply migrations from `backend/` before starting the API:
+
+```powershell
+uv run alembic -c alembic.ini upgrade head
+```
+
+The app then exposes `/login`, `/signup`, and `/logout`. Successful sign-in and sign-up redirect only to an internal LicenceIQ path. Username availability is never disclosed by the API. Usernames are normalized to lowercase `a-z`, digits, `.`, `_`, or `-` and must be 3–64 characters; passwords must be 7–256 characters.
 
 ## Run guest and signed-in flows together
 
@@ -62,6 +91,7 @@ Hybrid mode keeps the two security boundaries separate:
 - A guest upload has no credentials. Its upload response contains a one-time document capability, and every later operation sends that value in `X-Document-Capability`.
 - A signed-in upload sends its JWT in `Authorization: Bearer ...`. The resulting document belongs to the JWT subject and never returns a document capability.
 - JWTs cannot open guest documents, and guest capabilities cannot open signed-in documents. Missing or mismatched credentials look like an unknown document. Invalid JWTs return `401`, and requests containing both credential types return `400`.
+- In the durable PostgreSQL profile, **Sign out** calls `POST /api/auth/logout` before the browser clears its in-memory token. That revokes only the current database-backed session. If the server cannot confirm revocation, the browser keeps the session available so the user can retry.
 
 The guest capability is returned only once and must be kept in browser memory. It does not appear in document metadata, storage keys, URLs, or logs.
 
@@ -92,8 +122,9 @@ Set the frontend mode in `frontend/.env.local`. It must match the backend mode. 
 ```dotenv
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_AUTH_MODE=jwt
+NEXT_PUBLIC_SELF_REGISTRATION_ENABLED=false
 ```
 
-Then start the backend and frontend with the normal commands in the README. Sign in with the bootstrap account before uploading a document. A JWT belongs to one subject, and document operations for a different subject return the same missing-document response as an unknown ID.
+Then start the backend and frontend with the normal commands in the README. Sign in with the bootstrap account or, when local registration is enabled, create an account at `/signup` before uploading a document. A JWT belongs to one subject, and document operations for a different subject return the same missing-document response as an unknown ID.
 
-For a production setting, LicenceIQ still requires JWT-only authentication and rejects both capability and hybrid modes. A public guest service needs rate limits, abuse controls, malware scanning, and operational monitoring that are outside this assessment. Production also rejects filesystem storage, non-HTTPS CORS origins, incomplete JWT settings, or incomplete MinIO credentials before the server starts. Run one backend worker: MinIO persistence does not yet provide cross-process compare-and-swap protection for concurrent lifecycle updates.
+For a production setting, LicenceIQ still requires JWT-only authentication and rejects both capability/hybrid guest modes and local self-registration. A public guest or account service needs rate limits, email verification/recovery, abuse controls, malware scanning, and operational monitoring that are outside this assessment. Production also rejects filesystem storage, non-HTTPS CORS origins, incomplete JWT settings, or incomplete MinIO credentials before the server starts. Run one backend worker: MinIO persistence does not yet provide cross-process compare-and-swap protection for concurrent lifecycle updates.

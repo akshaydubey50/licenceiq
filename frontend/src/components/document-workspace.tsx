@@ -9,17 +9,25 @@ import {
 } from "react";
 import { ApiError, request } from "@/lib/api-client";
 import { Icon } from "@/components/icon";
+import {
+  deleteSavedChatHistory,
+  getSavedChatHistory,
+  listSavedDocuments,
+} from "@/lib/document-client";
 import { publicEnv } from "@/lib/env";
 import type { WorkspaceAccessMode } from "@/types/auth";
 import type {
   Document,
   DocumentPage,
   DocumentReading,
+  DocumentSplitResponse,
   Evidence,
   ExtractedField,
   ExtractionResult,
   FieldsResult,
   QuestionCitation,
+  QuestionHistoryEntry,
+  QuestionRequest,
   QuestionResult,
   ReadingBlock,
   ReviewedField,
@@ -36,9 +44,16 @@ const PROCESSING_STATUSES = new Set([
   "READY_WITH_WARNINGS",
   "FAILED",
 ]);
+const MULTIPLE_LICENCES_WARNING =
+  "More than one licence was detected. Upload a document containing a single licence.";
 const UNAVAILABLE_ANSWER = "I couldn't find that in this document.";
+const OUT_OF_SCOPE_ANSWER =
+  "I’m LicenceIQ, and I can help with questions about the uploaded driving licence. " +
+  "Try asking about its holder, licence number, dates, address, issuing authority, " +
+  "vehicle classes, or restrictions.";
 const MAX_QUESTION_LENGTH = 500;
-const MAX_TRANSCRIPT_ENTRIES = 5;
+const MAX_QUESTION_HISTORY_ENTRIES = 3;
+const MAX_TRANSCRIPT_ENTRIES = 50;
 const SUGGESTED_QUESTIONS = [
   "What is the driving licence number?",
   "When does this licence expire?",
@@ -58,8 +73,31 @@ type StoredDocument = {
   credential: DocumentCredential;
   previewUrl: string;
 };
+type DocumentWorkspaceState = {
+  reading: DocumentReading | null;
+  fieldsResult: FieldsResult | null;
+  draft: ReviewUpdateFields | null;
+  vehicleClassesText: string;
+  selectedSource: SelectedSource | null;
+  question: string;
+  questionTranscript: QuestionResult[];
+  questionError: string | null;
+};
+type SplitDocumentSelection = {
+  label: "Licence 1" | "Licence 2";
+  storedDocument: StoredDocument;
+  workspace: DocumentWorkspaceState;
+};
 type PendingCleanup = Pick<StoredDocument, "document" | "credential">;
-type WorkspaceOperation = "upload" | "read" | "save" | "remove" | "cleanup";
+type WorkspaceOperation =
+  | "upload"
+  | "load"
+  | "read"
+  | "split"
+  | "save"
+  | "remove"
+  | "clear-history"
+  | "cleanup";
 type SelectedSource = {
   pageNumber: number;
   blockId: string | null;
@@ -319,6 +357,30 @@ function reviewDraft(fields: FieldsResult): ReviewUpdateFields {
   };
 }
 
+function emptyDocumentWorkspaceState(): DocumentWorkspaceState {
+  return {
+    reading: null,
+    fieldsResult: null,
+    draft: null,
+    vehicleClassesText: "",
+    selectedSource: null,
+    question: "",
+    questionTranscript: [],
+    questionError: null,
+  };
+}
+
+function workspaceHasUnsavedChanges(
+  workspace: DocumentWorkspaceState,
+): boolean {
+  if (!workspace.fieldsResult || !workspace.draft) return false;
+  const savedDraft = reviewDraft(workspace.fieldsResult);
+  return (
+    draftSignature(workspace.draft) !== draftSignature(savedDraft) ||
+    workspace.vehicleClassesText !== savedDraft.vehicle_classes.join(", ")
+  );
+}
+
 function draftSignature(value: ReviewUpdateFields): string {
   return JSON.stringify(value);
 }
@@ -507,7 +569,9 @@ function decodeQuestionResult(
     ]) ||
     value.document_id !== documentId ||
     value.question !== question ||
-    (value.status !== "ANSWERED" && value.status !== "UNAVAILABLE") ||
+    (value.status !== "ANSWERED" &&
+      value.status !== "UNAVAILABLE" &&
+      value.status !== "OUT_OF_SCOPE") ||
     typeof value.answer !== "string" ||
     !Array.isArray(value.citations) ||
     !value.citations.every(isQuestionCitation) ||
@@ -515,7 +579,9 @@ function decodeQuestionResult(
     (value.status === "ANSWERED" &&
       (value.answer.trim().length === 0 || value.citations.length === 0)) ||
     (value.status === "UNAVAILABLE" &&
-      (value.answer !== UNAVAILABLE_ANSWER || value.citations.length !== 0))
+      (value.answer !== UNAVAILABLE_ANSWER || value.citations.length !== 0)) ||
+    (value.status === "OUT_OF_SCOPE" &&
+      (value.answer !== OUT_OF_SCOPE_ANSWER || value.citations.length !== 0))
   ) {
     throw new ApiError(
       "The backend returned an unexpected question response.",
@@ -551,6 +617,12 @@ function decodeQuestionResult(
 
 function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)} MB`;
+}
+
+function formatSavedDate(createdAt: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+  }).format(new Date(createdAt));
 }
 
 function validateFile(file: File): string | null {
@@ -610,10 +682,106 @@ async function uploadDocument(
   });
 }
 
+function decodeSplitResponse(
+  value: unknown,
+  parentDocumentId: string,
+  accessMode: WorkspaceAccessMode,
+): DocumentSplitResponse {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ["parent_document_id", "documents"]) ||
+    value.parent_document_id !== parentDocumentId ||
+    !Array.isArray(value.documents) ||
+    value.documents.length !== 2
+  ) {
+    throw new ApiError(
+      "The backend returned an unexpected split response.",
+      "INVALID_RESPONSE",
+    );
+  }
+
+  const documents = value.documents.map((child) => {
+    if (
+      !isRecord(child) ||
+      !Object.keys(child).every((key) =>
+        [
+          "document_id",
+          "filename",
+          "mime_type",
+          "size_bytes",
+          "status",
+          "created_at",
+          "page_count",
+          "warnings",
+          "access_token",
+        ].includes(key),
+      ) ||
+      !isDocument(child)
+    ) {
+      throw new ApiError(
+        "The backend returned an unexpected split response.",
+        "INVALID_RESPONSE",
+      );
+    }
+    const token = child.access_token;
+    if (
+      (token !== undefined &&
+        token !== null &&
+        (typeof token !== "string" || token.length === 0)) ||
+      (accessMode !== "jwt" && typeof token !== "string")
+    ) {
+      throw new ApiError(
+        "The backend returned an unexpected split credential.",
+        "INVALID_RESPONSE",
+      );
+    }
+    return {
+      ...documentFromResponse(child),
+      ...(typeof token === "string" ? { access_token: token } : {}),
+    };
+  });
+  const childIds = documents.map((child) => child.document_id);
+  if (
+    new Set(childIds).size !== 2 ||
+    childIds.some((documentId) => documentId === parentDocumentId)
+  ) {
+    throw new ApiError(
+      "The backend returned unexpected split document identities.",
+      "INVALID_RESPONSE",
+    );
+  }
+  return {
+    parent_document_id: parentDocumentId,
+    documents: [documents[0], documents[1]],
+  };
+}
+
 function credentialHeaders(credential: DocumentCredential): HeadersInit {
   return credential.kind === "authorization"
     ? { Authorization: `Bearer ${credential.value}` }
     : { "X-Document-Capability": credential.value };
+}
+
+async function splitDocument(
+  parentDocumentId: string,
+  credential: DocumentCredential,
+  accessMode: WorkspaceAccessMode,
+  signal: AbortSignal,
+): Promise<DocumentSplitResponse> {
+  return request(
+    `/api/documents/${encodeURIComponent(parentDocumentId)}/split`,
+    {
+      method: "POST",
+      headers: credentialHeaders(credential),
+      signal,
+      decode: async (response) =>
+        decodeSplitResponse(
+          await response.json().catch(() => null),
+          parentDocumentId,
+          accessMode,
+        ),
+    },
+  );
 }
 
 async function fetchPreview(
@@ -687,6 +855,23 @@ async function readDocument(
   );
 }
 
+/** Restore persisted evidence without invoking OCR or extraction again. */
+async function getSavedReading(
+  document: Document,
+  credential: DocumentCredential,
+  signal: AbortSignal,
+): Promise<DocumentReading> {
+  return request(
+    `/api/documents/${encodeURIComponent(document.document_id)}/reading`,
+    {
+      headers: credentialHeaders(credential),
+      signal,
+      decode: async (response) =>
+        decodeReading(await response.json().catch(() => null), document),
+    },
+  );
+}
+
 async function extractDocument(
   documentId: string,
   credential: DocumentCredential,
@@ -738,16 +923,21 @@ async function askDocumentQuestion(
   documentId: string,
   credential: DocumentCredential,
   question: string,
+  history: QuestionHistoryEntry[],
   reading: DocumentReading,
   signal: AbortSignal,
 ): Promise<QuestionResult> {
+  const payload: QuestionRequest = {
+    question,
+    ...(history.length > 0 ? { history } : {}),
+  };
   return request(`/api/documents/${encodeURIComponent(documentId)}/questions`, {
     method: "POST",
     headers: {
       ...credentialHeaders(credential),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(payload),
     signal,
     timeoutMs: 45_000,
     decode: async (response) =>
@@ -764,6 +954,7 @@ type DocumentWorkspaceProps = {
   accessMode?: WorkspaceAccessMode;
   sessionAccessToken?: string;
   onUnauthorized?: () => void;
+  onDirtyChange?: (hasUnsavedChanges: boolean) => void;
 };
 
 /** Owns browser-only authorization and revokes all preview URLs on exit. */
@@ -771,11 +962,22 @@ export function DocumentWorkspace({
   accessMode = publicEnv.authMode === "jwt" ? "jwt" : "capability",
   sessionAccessToken,
   onUnauthorized,
+  onDirtyChange,
 }: DocumentWorkspaceProps = {}) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [savedDocuments, setSavedDocuments] = useState<Document[]>([]);
+  const [savedDocumentsLoading, setSavedDocumentsLoading] = useState(
+    accessMode === "jwt",
+  );
+  const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(
+    null,
+  );
   const [activeDocument, setActiveDocument] = useState<StoredDocument | null>(
     null,
   );
+  const [splitDocuments, setSplitDocuments] = useState<
+    SplitDocumentSelection[] | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [failedOperation, setFailedOperation] = useState<
     "upload" | "read" | "save" | "remove" | null
@@ -803,6 +1005,10 @@ export function DocumentWorkspace({
   const questionInputRef = useRef<HTMLInputElement>(null);
   const previewRegionRef = useRef<HTMLDivElement>(null);
   const questionControllerRef = useRef<AbortController | null>(null);
+  const savedListControllerRef = useRef<AbortController | null>(null);
+  const savedListRequestRef = useRef(0);
+  const savedDocumentControllerRef = useRef<AbortController | null>(null);
+  const savedDocumentRequestRef = useRef(0);
   const mountedRef = useRef(true);
   const controllersRef = useRef(new Set<AbortController>());
   const previewUrlsRef = useRef(new Set<string>());
@@ -813,6 +1019,8 @@ export function DocumentWorkspace({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      savedListControllerRef.current?.abort();
+      savedDocumentControllerRef.current?.abort();
       controllers.forEach((controller) => controller.abort());
       previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
@@ -840,6 +1048,82 @@ export function DocumentWorkspace({
     return false;
   };
 
+  const loadSavedDocuments = async () => {
+    if (accessMode !== "jwt" || !sessionAccessToken) return;
+    const requestId = savedListRequestRef.current + 1;
+    savedListRequestRef.current = requestId;
+    savedListControllerRef.current?.abort();
+    setSavedDocumentsLoading(true);
+    setSavedDocumentsError(null);
+    const controller = createController();
+    savedListControllerRef.current = controller;
+    try {
+      const result = await listSavedDocuments(
+        sessionAccessToken,
+        controller.signal,
+      );
+      updateWhenMounted(() => {
+        if (savedListRequestRef.current !== requestId) return;
+        setSavedDocuments(result.documents);
+      });
+    } catch (failure) {
+      if (savedListRequestRef.current !== requestId) return;
+      if (handleUnauthorized(failure)) return;
+      updateWhenMounted(() => {
+        setSavedDocuments([]);
+        setSavedDocumentsError(
+          "Saved documents could not be loaded. Please try again.",
+        );
+      });
+    } finally {
+      completeController(controller);
+      if (savedListControllerRef.current === controller) {
+        savedListControllerRef.current = null;
+      }
+      updateWhenMounted(() => {
+        if (savedListRequestRef.current === requestId) {
+          setSavedDocumentsLoading(false);
+        }
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (accessMode !== "jwt" || !sessionAccessToken) {
+      savedListRequestRef.current += 1;
+      savedListControllerRef.current?.abort();
+      savedListControllerRef.current = null;
+      setSavedDocuments([]);
+      setSavedDocumentsLoading(false);
+      setSavedDocumentsError(null);
+      return;
+    }
+    void loadSavedDocuments();
+    // The access token is the identity boundary for this in-memory workspace.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessMode, sessionAccessToken]);
+
+  const clearUnavailableDocument = (
+    failure: unknown,
+    documentId: string,
+  ): boolean => {
+    if (
+      !(failure instanceof ApiError) ||
+      failure.status !== 404 ||
+      activeDocument?.document.document_id !== documentId
+    ) {
+      return false;
+    }
+    clearQuestionState();
+    updateWhenMounted(() => {
+      removeDocumentFromWorkspace(
+        documentId,
+        "This document is no longer available. It may have reached the server retention limit.",
+      );
+    });
+    return true;
+  };
+
   const clearQuestionState = () => {
     const questionController = questionControllerRef.current;
     questionControllerRef.current = null;
@@ -848,6 +1132,344 @@ export function DocumentWorkspace({
     setQuestionTranscript([]);
     setQuestionError(null);
     setQuestionPending(false);
+  };
+
+  const openSavedDocument = async (document: Document) => {
+    if (
+      accessMode !== "jwt" ||
+      !sessionAccessToken ||
+      operation ||
+      pendingCleanup ||
+      questionPending
+    ) {
+      return;
+    }
+    if (
+      hasAnyUnsavedChanges &&
+      !window.confirm(
+        "You have unsaved review changes. Opening another document will discard them. Continue?",
+      )
+    ) {
+      return;
+    }
+
+    const requestId = savedDocumentRequestRef.current + 1;
+    savedDocumentRequestRef.current = requestId;
+    savedDocumentControllerRef.current?.abort();
+    const controller = createController();
+    savedDocumentControllerRef.current = controller;
+    const credential: DocumentCredential = {
+      kind: "authorization",
+      value: sessionAccessToken,
+    };
+    const previousPreviewUrls = new Set(
+      splitDocuments?.map((selection) => selection.storedDocument.previewUrl) ??
+        (activeDocument ? [activeDocument.previewUrl] : []),
+    );
+
+    clearQuestionState();
+    previousPreviewUrls.forEach((url) => {
+      previewUrlsRef.current.delete(url);
+      URL.revokeObjectURL(url);
+    });
+    setActiveDocument(null);
+    setSplitDocuments(null);
+    setSelectedFile(null);
+    restoreWorkspaceState(emptyDocumentWorkspaceState());
+    setOperation("load");
+    setError(null);
+    setFailedOperation(null);
+    setNotice(null);
+
+    let previewUrl: string | null = null;
+    try {
+      previewUrl = await fetchPreview(document, credential, controller.signal);
+      const [history, readingResult] = await Promise.all([
+        getSavedChatHistory(
+          document.document_id,
+          sessionAccessToken,
+          controller.signal,
+        ),
+        getSavedReading(document, credential, controller.signal).catch(
+          (failure: unknown) => {
+            if (failure instanceof ApiError && failure.status === 404) {
+              return null;
+            }
+            throw failure;
+          },
+        ),
+      ]);
+      const fields = readingResult
+        ? await getFields(
+            document.document_id,
+            credential,
+            controller.signal,
+          ).catch((failure: unknown) => {
+            if (failure instanceof ApiError && failure.status === 404) {
+              return null;
+            }
+            throw failure;
+          })
+        : null;
+      if (
+        savedDocumentRequestRef.current !== requestId ||
+        controller.signal.aborted
+      ) {
+        URL.revokeObjectURL(previewUrl);
+        return;
+      }
+
+      if (!readingResult && history.turns.length > 0) {
+        throw new ApiError(
+          "The saved chat history has no matching document evidence.",
+          "INVALID_RESPONSE",
+        );
+      }
+      const restoredTurns = readingResult
+        ? history.turns.map((turn) =>
+            decodeQuestionResult(
+              turn,
+              document.document_id,
+              turn.question,
+              readingResult,
+            ),
+          )
+        : [];
+      const nextDraft = fields ? reviewDraft(fields) : null;
+      previewUrlsRef.current.add(previewUrl);
+      const storedDocument: StoredDocument = {
+        document,
+        credential,
+        previewUrl,
+      };
+      previewUrl = null;
+      updateWhenMounted(() => {
+        if (savedDocumentRequestRef.current !== requestId) return;
+        setActiveDocument(storedDocument);
+        setReading(readingResult);
+        setFieldsResult(fields);
+        setDraft(nextDraft);
+        setVehicleClassesText(nextDraft?.vehicle_classes.join(", ") ?? "");
+        setQuestionTranscript(restoredTurns);
+        setNotice(
+          fields
+            ? restoredTurns.length > 0
+              ? "Saved document and conversation restored."
+              : "Saved document review restored."
+            : "Saved document restored. Read it when you are ready.",
+        );
+      });
+    } catch (failure) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (savedDocumentRequestRef.current !== requestId) return;
+      if (handleUnauthorized(failure)) return;
+      updateWhenMounted(() => {
+        if (failure instanceof ApiError && failure.status === 404) {
+          setSavedDocuments((current) =>
+            current.filter(
+              (savedDocument) =>
+                savedDocument.document_id !== document.document_id,
+            ),
+          );
+        }
+        setError(
+          failure instanceof ApiError && failure.status === 404
+            ? "This saved document is no longer available. It may have expired or been removed."
+            : "This saved document could not be opened. Please try again.",
+        );
+      });
+    } finally {
+      completeController(controller);
+      if (savedDocumentControllerRef.current === controller) {
+        savedDocumentControllerRef.current = null;
+      }
+      updateWhenMounted(() => {
+        if (savedDocumentRequestRef.current === requestId) setOperation(null);
+      });
+    }
+  };
+
+  const clearActiveChatHistory = async () => {
+    if (
+      accessMode !== "jwt" ||
+      !sessionAccessToken ||
+      !activeDocument ||
+      operation ||
+      questionPending ||
+      questionTranscript.length === 0 ||
+      !window.confirm(
+        "Clear the saved conversation for this document? This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+    const documentId = activeDocument.document.document_id;
+    const controller = createController();
+    setOperation("clear-history");
+    setQuestionError(null);
+    try {
+      await deleteSavedChatHistory(
+        documentId,
+        sessionAccessToken,
+        controller.signal,
+      );
+      updateWhenMounted(() => {
+        if (activeDocument?.document.document_id !== documentId) return;
+        setQuestionTranscript([]);
+        setQuestion("");
+        setNotice("Saved conversation cleared for this document.");
+      });
+    } catch (failure) {
+      if (handleUnauthorized(failure)) return;
+      updateWhenMounted(() => {
+        if (activeDocument?.document.document_id !== documentId) return;
+        setQuestionError(
+          failure instanceof ApiError && failure.status === 404
+            ? "This saved conversation is no longer available."
+            : "The saved conversation could not be cleared. Please try again.",
+        );
+      });
+    } finally {
+      completeController(controller);
+      updateWhenMounted(() => setOperation(null));
+    }
+  };
+
+  const captureWorkspaceState = (): DocumentWorkspaceState => ({
+    reading,
+    fieldsResult,
+    draft,
+    vehicleClassesText,
+    selectedSource,
+    question,
+    questionTranscript,
+    questionError,
+  });
+
+  const restoreWorkspaceState = (workspace: DocumentWorkspaceState) => {
+    setReading(workspace.reading);
+    setFieldsResult(workspace.fieldsResult);
+    setDraft(workspace.draft);
+    setVehicleClassesText(workspace.vehicleClassesText);
+    setSelectedSource(workspace.selectedSource);
+    setQuestion(workspace.question);
+    setQuestionTranscript(workspace.questionTranscript);
+    setQuestionError(workspace.questionError);
+    setQuestionPending(false);
+  };
+
+  const removeDocumentFromWorkspace = (
+    documentId: string,
+    nextNotice: string,
+  ) => {
+    if (activeDocument?.document.document_id !== documentId) return;
+    if (accessMode === "jwt") {
+      setSavedDocuments((current) =>
+        current.filter((document) => document.document_id !== documentId),
+      );
+    }
+    previewUrlsRef.current.delete(activeDocument.previewUrl);
+    URL.revokeObjectURL(activeDocument.previewUrl);
+    const remainingSelections =
+      splitDocuments?.filter(
+        (selection) =>
+          selection.storedDocument.document.document_id !== documentId,
+      ) ?? [];
+    if (remainingSelections.length > 0) {
+      const nextSelection = remainingSelections[0];
+      setSplitDocuments(remainingSelections);
+      setActiveDocument(nextSelection.storedDocument);
+      restoreWorkspaceState(nextSelection.workspace);
+    } else {
+      setSplitDocuments(null);
+      setActiveDocument(null);
+      restoreWorkspaceState(emptyDocumentWorkspaceState());
+    }
+    setError(null);
+    setFailedOperation(null);
+    setNotice(nextNotice);
+  };
+
+  const switchSplitDocument = (documentId: string) => {
+    if (
+      !splitDocuments ||
+      !activeDocument ||
+      operation ||
+      questionPending ||
+      activeDocument.document.document_id === documentId
+    ) {
+      return;
+    }
+    const target = splitDocuments.find(
+      (selection) =>
+        selection.storedDocument.document.document_id === documentId,
+    );
+    if (!target) return;
+    const currentDocumentId = activeDocument.document.document_id;
+    const currentWorkspace = captureWorkspaceState();
+    setSplitDocuments(
+      (current) =>
+        current?.map((selection) =>
+          selection.storedDocument.document.document_id === currentDocumentId
+            ? { ...selection, workspace: currentWorkspace }
+            : selection,
+        ) ?? null,
+    );
+    setActiveDocument(target.storedDocument);
+    restoreWorkspaceState(target.workspace);
+    setError(null);
+    setFailedOperation(null);
+    setNotice(`Reviewing ${target.label}.`);
+  };
+
+  const prepareSplitDocuments = async (
+    parent: StoredDocument,
+    response: DocumentSplitResponse,
+    signal: AbortSignal,
+  ): Promise<SplitDocumentSelection[]> => {
+    const previewUrls: string[] = [];
+    try {
+      const selections: SplitDocumentSelection[] = [];
+      for (const [index, child] of response.documents.entries()) {
+        const childCapability = child.access_token;
+        const childDocument = documentFromResponse(child);
+        let credential: DocumentCredential = parent.credential;
+        if (accessMode !== "jwt") {
+          if (typeof childCapability !== "string" || !childCapability) {
+            throw new ApiError(
+              "The backend returned an unexpected split credential.",
+              "INVALID_RESPONSE",
+            );
+          }
+          credential = {
+            kind:
+              accessMode === "hybrid-guest"
+                ? "document-capability"
+                : "authorization",
+            value: childCapability,
+          };
+        }
+        const previewUrl = await fetchPreview(
+          childDocument,
+          credential,
+          signal,
+        );
+        previewUrls.push(previewUrl);
+        previewUrlsRef.current.add(previewUrl);
+        selections.push({
+          label: index === 0 ? "Licence 1" : "Licence 2",
+          storedDocument: { document: childDocument, credential, previewUrl },
+          workspace: emptyDocumentWorkspaceState(),
+        });
+      }
+      return selections;
+    } catch (failure) {
+      previewUrls.forEach((previewUrl) => {
+        previewUrlsRef.current.delete(previewUrl);
+        URL.revokeObjectURL(previewUrl);
+      });
+      throw failure;
+    }
   };
 
   const focusSource = (source: SelectedSource) => {
@@ -964,6 +1586,14 @@ export function DocumentWorkspace({
 
   const submitUpload = async () => {
     if (!selectedFile || operation || pendingCleanup) return;
+    if (
+      hasAnyUnsavedChanges &&
+      !window.confirm(
+        "You have unsaved review changes. Replacing this document will discard them. Continue?",
+      )
+    ) {
+      return;
+    }
     if (activeDocument) clearQuestionState();
     setOperation("upload");
     setError(null);
@@ -1016,6 +1646,18 @@ export function DocumentWorkspace({
       const previousDocument = activeDocument;
       updateWhenMounted(() => {
         setActiveDocument(nextDocument);
+        setSplitDocuments(null);
+        if (accessMode === "jwt") {
+          setSavedDocuments((current) =>
+            [
+              response.document,
+              ...current.filter(
+                (document) =>
+                  document.document_id !== response.document.document_id,
+              ),
+            ].slice(0, 50),
+          );
+        }
         setSelectedFile(null);
         setSelectedSource(null);
         setReading(null);
@@ -1027,15 +1669,26 @@ export function DocumentWorkspace({
         );
       });
       if (previousDocument) {
-        previewUrlsRef.current.delete(previousDocument.previewUrl);
-        URL.revokeObjectURL(previousDocument.previewUrl);
-        await attemptCleanup(
-          {
-            document: previousDocument.document,
-            credential: previousDocument.credential,
-          },
-          nextDocument,
+        const previousPreviewUrls = new Set(
+          splitDocuments?.map(
+            (selection) => selection.storedDocument.previewUrl,
+          ) ?? [previousDocument.previewUrl],
         );
+        previousPreviewUrls.forEach((url) => {
+          previewUrlsRef.current.delete(url);
+          URL.revokeObjectURL(url);
+        });
+        if (accessMode === "jwt") {
+          updateWhenMounted(() => setNotice("Your new document is ready."));
+        } else {
+          await attemptCleanup(
+            {
+              document: previousDocument.document,
+              credential: previousDocument.credential,
+            },
+            nextDocument,
+          );
+        }
       }
     } catch (uploadFailure) {
       if (previewUrl) {
@@ -1063,6 +1716,14 @@ export function DocumentWorkspace({
 
   const removeDocument = async () => {
     if (!activeDocument || operation) return;
+    if (
+      hasUnsavedChanges &&
+      !window.confirm(
+        "You have unsaved review changes. Removing this document will discard them. Continue?",
+      )
+    ) {
+      return;
+    }
     clearQuestionState();
     setOperation("remove");
     setError(null);
@@ -1074,32 +1735,20 @@ export function DocumentWorkspace({
         activeDocument.credential,
         controller.signal,
       );
-      previewUrlsRef.current.delete(activeDocument.previewUrl);
-      URL.revokeObjectURL(activeDocument.previewUrl);
       updateWhenMounted(() => {
-        setActiveDocument(null);
-        setSelectedSource(null);
-        setReading(null);
-        setFieldsResult(null);
-        setDraft(null);
-        setVehicleClassesText("");
-        setNotice("Your document was removed.");
+        removeDocumentFromWorkspace(
+          activeDocument.document.document_id,
+          "Your document was removed.",
+        );
       });
     } catch (removeFailure) {
       if (handleUnauthorized(removeFailure)) return;
-      if (removeFailure instanceof ApiError && removeFailure.status === 404) {
-        previewUrlsRef.current.delete(activeDocument.previewUrl);
-        URL.revokeObjectURL(activeDocument.previewUrl);
-        updateWhenMounted(() => {
-          setActiveDocument(null);
-          setSelectedSource(null);
-          setReading(null);
-          setFieldsResult(null);
-          setDraft(null);
-          setVehicleClassesText("");
-          setNotice("This document is no longer available on the server.");
-        });
-      } else {
+      if (
+        !clearUnavailableDocument(
+          removeFailure,
+          activeDocument.document.document_id,
+        )
+      ) {
         updateWhenMounted(() => {
           setFailedOperation("remove");
           setError(
@@ -1125,11 +1774,11 @@ export function DocumentWorkspace({
     if (!activeDocument || operation || pendingCleanup || questionPending)
       return;
     const documentId = activeDocument.document.document_id;
+    clearQuestionState();
     setOperation("read");
     setError(null);
     setFailedOperation(null);
     setNotice(null);
-    setSelectedSource(null);
     const controller = createController();
     try {
       const result = await readDocument(
@@ -1138,11 +1787,11 @@ export function DocumentWorkspace({
         controller.signal,
       );
       updateWhenMounted(() => {
-        if (activeDocument?.document.document_id === documentId) {
-          setReading(result);
-        }
+        if (activeDocument?.document.document_id !== documentId) return;
+        setSelectedSource(null);
+        setReading(result);
       });
-      await extractDocument(
+      const extraction = await extractDocument(
         documentId,
         activeDocument.credential,
         controller.signal,
@@ -1152,9 +1801,63 @@ export function DocumentWorkspace({
         activeDocument.credential,
         controller.signal,
       );
+      if (extraction.warnings.includes(MULTIPLE_LICENCES_WARNING)) {
+        const parentDocument = activeDocument;
+        setOperation("split");
+        try {
+          const splitResponse = await splitDocument(
+            documentId,
+            parentDocument.credential,
+            accessMode,
+            controller.signal,
+          );
+          const selections = await prepareSplitDocuments(
+            parentDocument,
+            splitResponse,
+            controller.signal,
+          );
+          updateWhenMounted(() => {
+            if (activeDocument?.document.document_id !== documentId) return;
+            const firstSelection = selections[0];
+            setSplitDocuments(selections);
+            setActiveDocument(firstSelection.storedDocument);
+            restoreWorkspaceState(firstSelection.workspace);
+            setSelectedFile(null);
+            setError(null);
+            setFailedOperation(null);
+            setNotice(
+              "Two licences were separated. Review Licence 1, then switch to Licence 2.",
+            );
+          });
+          previewUrlsRef.current.delete(parentDocument.previewUrl);
+          URL.revokeObjectURL(parentDocument.previewUrl);
+          return;
+        } catch (splitFailure) {
+          if (handleUnauthorized(splitFailure)) return;
+          if (clearUnavailableDocument(splitFailure, documentId)) return;
+          updateWhenMounted(() => {
+            if (activeDocument?.document.document_id !== documentId) return;
+            const nextDraft = reviewDraft(reviewed);
+            clearQuestionState();
+            setSelectedSource(null);
+            setReading(result);
+            setFieldsResult(reviewed);
+            setDraft(nextDraft);
+            setVehicleClassesText(nextDraft.vehicle_classes.join(", "));
+            setFailedOperation("read");
+            setError(
+              `The two licences could not be separated. ${uploadError(splitFailure)}`,
+            );
+          });
+          return;
+        }
+      }
       updateWhenMounted(() => {
         if (activeDocument?.document.document_id !== documentId) return;
         const nextDraft = reviewDraft(reviewed);
+        clearQuestionState();
+        setSelectedSource(null);
+        setReading(result);
         setFieldsResult(reviewed);
         setDraft(nextDraft);
         setVehicleClassesText(nextDraft.vehicle_classes.join(", "));
@@ -1169,6 +1872,7 @@ export function DocumentWorkspace({
       });
     } catch (readFailure) {
       if (handleUnauthorized(readFailure)) return;
+      if (clearUnavailableDocument(readFailure, documentId)) return;
       updateWhenMounted(() => {
         if (activeDocument?.document.document_id !== documentId) return;
         setFailedOperation("read");
@@ -1226,6 +1930,7 @@ export function DocumentWorkspace({
       });
     } catch (saveFailure) {
       if (handleUnauthorized(saveFailure)) return;
+      if (clearUnavailableDocument(saveFailure, documentId)) return;
       updateWhenMounted(() => {
         if (activeDocument?.document.document_id !== documentId) return;
         setFailedOperation("save");
@@ -1264,6 +1969,11 @@ export function DocumentWorkspace({
       return;
     }
     const documentId = activeDocument.document.document_id;
+    const history = questionTranscript
+      .slice(-MAX_QUESTION_HISTORY_ENTRIES)
+      .map(({ question: previousQuestion }) => ({
+        question: previousQuestion,
+      }));
     const controller = createController();
     questionControllerRef.current = controller;
     setQuestionPending(true);
@@ -1273,6 +1983,7 @@ export function DocumentWorkspace({
         documentId,
         activeDocument.credential,
         normalizedQuestion,
+        history,
         reading,
         controller.signal,
       );
@@ -1290,6 +2001,7 @@ export function DocumentWorkspace({
       });
     } catch (questionFailure) {
       if (handleUnauthorized(questionFailure)) return;
+      if (clearUnavailableDocument(questionFailure, documentId)) return;
       updateWhenMounted(() => {
         if (questionControllerRef.current !== controller) return;
         setQuestionError(
@@ -1317,6 +2029,37 @@ export function DocumentWorkspace({
     (draftSignature(draft) !== draftSignature(savedDraft) ||
       vehicleClassesText !== savedDraft.vehicle_classes.join(", ")),
   );
+  const hasAnyUnsavedChanges =
+    hasUnsavedChanges ||
+    Boolean(
+      splitDocuments?.some(
+        (selection) =>
+          selection.storedDocument.document.document_id !==
+            activeDocument?.document.document_id &&
+          workspaceHasUnsavedChanges(selection.workspace),
+      ),
+    );
+
+  useEffect(() => {
+    onDirtyChange?.(hasAnyUnsavedChanges);
+  }, [hasAnyUnsavedChanges, onDirtyChange]);
+
+  useEffect(
+    () => () => {
+      onDirtyChange?.(false);
+    },
+    [onDirtyChange],
+  );
+
+  useEffect(() => {
+    if (!hasAnyUnsavedChanges) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasAnyUnsavedChanges]);
 
   return (
     <div className="workspace-grid">
@@ -1326,8 +2069,115 @@ export function DocumentWorkspace({
             <Icon name="document" />
             <h2 id="document-heading">Your document</h2>
           </div>
-          <span className="subtle-label">ONE LICENCE AT A TIME</span>
+          <span className="subtle-label">
+            {splitDocuments ? "TWO SEPARATE LICENCES" : "ONE LICENCE AT A TIME"}
+          </span>
         </div>
+        {accessMode === "jwt" && (
+          <section
+            className="saved-documents"
+            aria-labelledby="saved-documents-heading"
+            aria-busy={savedDocumentsLoading || operation === "load"}
+          >
+            <div className="saved-documents-heading">
+              <div>
+                <h3 id="saved-documents-heading">Saved documents</h3>
+                <p>Reopen a document and continue its saved conversation.</p>
+              </div>
+              {!savedDocumentsLoading && savedDocuments.length > 0 && (
+                <span>{savedDocuments.length} saved</span>
+              )}
+            </div>
+            {savedDocumentsLoading ? (
+              <p className="saved-documents-state" role="status">
+                Loading saved documents…
+              </p>
+            ) : savedDocumentsError ? (
+              <div className="saved-documents-state" role="alert">
+                <p>{savedDocumentsError}</p>
+                <button
+                  type="button"
+                  className="inline-retry"
+                  disabled={busy}
+                  onClick={() => void loadSavedDocuments()}
+                >
+                  Try again
+                </button>
+              </div>
+            ) : savedDocuments.length === 0 ? (
+              <p className="saved-documents-state">
+                No saved documents yet. Your authenticated uploads will appear
+                here.
+              </p>
+            ) : (
+              <ul className="saved-document-list">
+                {savedDocuments.map((document) => {
+                  const isActive =
+                    activeDocument?.document.document_id ===
+                    document.document_id;
+                  return (
+                    <li key={document.document_id}>
+                      <button
+                        type="button"
+                        className={isActive ? "is-active" : undefined}
+                        aria-pressed={isActive}
+                        disabled={busy || questionPending || isActive}
+                        onClick={() => void openSavedDocument(document)}
+                      >
+                        <span>
+                          <strong>{document.filename}</strong>
+                          <small>
+                            {formatSavedDate(document.created_at)} ·{" "}
+                            {formatBytes(document.size_bytes)}
+                          </small>
+                        </span>
+                        <em>
+                          {operation === "load" && !isActive
+                            ? "Opening…"
+                            : isActive
+                              ? "Open"
+                              : "Resume"}
+                        </em>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+        {splitDocuments && (
+          <div
+            className="split-document-selector"
+            role="group"
+            aria-label="Separated licences"
+          >
+            <p className="operation-message" role="status">
+              Two licences were separated into isolated documents.
+            </p>
+            <div className="upload-actions">
+              {splitDocuments.map((selection) => {
+                const documentId =
+                  selection.storedDocument.document.document_id;
+                const isActive =
+                  activeDocument?.document.document_id === documentId;
+                return (
+                  <button
+                    type="button"
+                    className={isActive ? "upload-button" : "secondary-button"}
+                    key={documentId}
+                    aria-pressed={isActive}
+                    disabled={busy || questionPending}
+                    onClick={() => switchSplitDocument(documentId)}
+                  >
+                    {selection.label}
+                    {isActive ? " · Active" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div
           className={`upload-placeholder ${isDragging ? "is-dragging" : ""}`}
           onDragEnter={(event) => {
@@ -1476,7 +2326,11 @@ export function DocumentWorkspace({
               onClick={() => fileInputRef.current?.click()}
             >
               <Icon name="upload" width="18" height="18" />
-              {activeDocument ? "Choose replacement" : "Choose a document"}
+              {activeDocument
+                ? accessMode === "jwt"
+                  ? "Choose another document"
+                  : "Choose replacement"
+                : "Choose a document"}
             </button>
             {selectedFile && (
               <button
@@ -1487,7 +2341,7 @@ export function DocumentWorkspace({
               >
                 {operation === "upload"
                   ? "Uploading…"
-                  : activeDocument
+                  : activeDocument && accessMode !== "jwt"
                     ? "Replace document"
                     : "Upload document"}
               </button>
@@ -1511,9 +2365,11 @@ export function DocumentWorkspace({
               >
                 {operation === "read"
                   ? "Reading and extracting…"
-                  : fieldsResult
-                    ? "Read document again"
-                    : "Read document"}
+                  : operation === "split"
+                    ? "Separating licences…"
+                    : fieldsResult
+                      ? "Read document again"
+                      : "Read document"}
               </button>
             )}
             {activeDocument && (
@@ -1531,8 +2387,9 @@ export function DocumentWorkspace({
             PDF, PNG or JPG <span>·</span> Up to 10 MB
           </p>
           <p className="retention-copy">
-            Image and scanned-page reading uses OpenAI. Uploaded files expire
-            after 24 hours, and Remove deletes the server copy.
+            Reading scanned pages, extracting fields and answering questions can
+            send document content to OpenAI. Uploaded files expire after 24
+            hours, and Remove deletes the server copy.
           </p>
           {error && (
             <p className="operation-message error-message" role="alert">
@@ -1581,7 +2438,7 @@ export function DocumentWorkspace({
         <div className="panel-footnote">
           <span className={`small-dot ${activeDocument ? "is-ready" : ""}`} />
           {activeDocument
-            ? operation === "read"
+            ? operation === "read" || operation === "split"
               ? "Reading and extracting document"
               : fieldsResult
                 ? "Document review is ready"
@@ -1599,7 +2456,7 @@ export function DocumentWorkspace({
             <h2 id="details-heading">Extracted information</h2>
           </div>
           <span className="waiting-badge">
-            {operation === "read"
+            {operation === "read" || operation === "split"
               ? "Processing document"
               : operation === "save"
                 ? "Saving changes"
@@ -1620,7 +2477,7 @@ export function DocumentWorkspace({
         </div>
         <div className="details-content">
           <p className="details-intro">
-            {operation === "read"
+            {operation === "read" || operation === "split"
               ? "Reading pages, extracting licence details and loading the review. Keep this workspace open."
               : fieldsResult
                 ? "Compare each reviewer value with the immutable document extraction before saving."
@@ -1918,6 +2775,18 @@ export function DocumentWorkspace({
                   : "Available after reading, extraction and fields are ready."}
               </p>
             </div>
+            {accessMode === "jwt" && activeDocument && fieldsResult && (
+              <button
+                type="button"
+                className="text-button danger-button clear-history-button"
+                disabled={
+                  busy || questionPending || questionTranscript.length === 0
+                }
+                onClick={() => void clearActiveChatHistory()}
+              >
+                {operation === "clear-history" ? "Clearing…" : "Clear history"}
+              </button>
+            )}
           </div>
           {fieldsResult && activeDocument && (
             <div className="chat-content">
@@ -1928,7 +2797,7 @@ export function DocumentWorkspace({
                       <p className="chat-question">{entry.question}</p>
                       <div
                         className={`chat-answer ${
-                          entry.status === "UNAVAILABLE"
+                          entry.status !== "ANSWERED"
                             ? "chat-answer-unavailable"
                             : ""
                         }`}

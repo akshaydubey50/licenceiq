@@ -1,0 +1,37 @@
+{
+  "work_unit": "Diagnose and restore local OpenAI OCR runtime connectivity",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 1,
+      "verification": 2
+    },
+    "risk": "high",
+    "recommendation": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "helper_result": "candidate"
+    }
+  },
+  "execution": {
+    "mode": "direct coordinator diagnosis",
+    "reason": "The investigation was one connected local runtime issue; a separate worker would not create an independent verification path.",
+    "workers": [],
+    "attempts": 1,
+    "escalations": 0,
+    "source_changes": []
+  },
+  "evidence": {
+    "settings_probe": "The running configuration has an OpenAI key, model gpt-4.1-mini, and a 45-second OCR timeout. No secret value was inspected or logged.",
+    "provider_probe": "A document-free Responses API request completed with the configured key and model.",
+    "cause": "The local FastAPI process serving port 8000 had been launched in a restricted runtime and could not reach the OpenAI API. The application correctly converted its upstream failure into the intentionally sanitized OCR_PROVIDER_ERROR envelope.",
+    "remediation": "Stopped only the identified local backend launcher and child process, then restarted the same uvicorn application outside the restricted runtime.",
+    "live_verification": "Health returned 200. A supplied fictional licence image completed upload (201), OCR reading (200, one nonempty OCR page), and private cleanup (204). No document text or access capability was recorded."
+  },
+  "outcome": {
+    "status": "restored and verified",
+    "user_action": "Retry the failed read in the browser; failed reads do not publish partial results."
+  }
+}

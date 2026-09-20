@@ -33,9 +33,11 @@ Follow these rules exactly:
    QR codes, barcodes, or other machine-readable marks.
 6. If distinct licence holders or licence numbers are present, set multiple_licences_detected=true
    and do not combine their facts. Otherwise set it to false.
-7. vehicle_classes may contain only directly stated class/COV entries. other_information may
-   contain directly stated relevant facts such as relationship details, blood group, restrictions,
-   or COV scope. Omit decorative text and unrelated document content.
+7. vehicle_classes may contain only directly stated class/COV entries. Collect other directly
+   printed, non-decorative relevant labelled facts in other_information with their exact label and
+   evidence, including body height, blood group, relationship names, restrictions, endorsements,
+   or COV scope. Do not infer such facts from portraits, signatures, QR codes, barcodes, or other
+   unlabelled or machine-readable content. Omit decorative text and unrelated document content.
 8. Return only the strict JSON schema requested. Document IDs and block IDs are evidence
    references, not facts to copy into extracted values.
 """

@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The user specifies evidence-backed answers for additional labelled licence facts; label aliases require bounded matching.",
+    "scope": "Extraction instructions, direct-question routing, and tests must preserve source isolation.",
+    "reasoning": "The resolver must improve natural queries without matching ambiguous or unsupported fields.",
+    "verification": "Offline extraction prompt and Q&A direct-path regression coverage are required."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

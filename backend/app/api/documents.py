@@ -9,7 +9,10 @@ from pydantic import ValidationError
 
 from app.core.errors import ApplicationError
 from app.models.document import (
+    ChatHistory,
     Document,
+    DocumentList,
+    DocumentSplitResponse,
     DocumentUploadResponse,
     ExtractionResult,
     FieldsResult,
@@ -94,6 +97,18 @@ async def upload_document(
     )
 
 
+@router.get("", response_model=DocumentList)
+def list_documents(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
+) -> JSONResponse:
+    result = _service(request).list_owned(_credentials(authorization, document_capability))
+    return JSONResponse(
+        content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
+    )
+
+
 @router.get("/{document_id}", response_model=Document)
 def get_document(
     request: Request,
@@ -104,6 +119,30 @@ def get_document(
     result = _service(request).get(document_id, _credentials(authorization, document_capability))
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
+    )
+
+
+@router.post(
+    "/{document_id}/split",
+    response_model=DocumentSplitResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def split_document(
+    request: Request,
+    document_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
+) -> JSONResponse:
+    """Create two private PNG documents from an eligible side-by-side source image."""
+    result = await run_in_threadpool(
+        _service(request).split,
+        document_id,
+        _credentials(authorization, document_capability),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=result.model_dump(mode="json"),
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -251,6 +290,34 @@ async def ask_document_question(
     return JSONResponse(
         content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
     )
+
+
+@router.get("/{document_id}/chat-history", response_model=ChatHistory)
+def get_document_chat_history(
+    request: Request,
+    document_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
+) -> JSONResponse:
+    result = _service(request).get_chat_history(
+        document_id, _credentials(authorization, document_capability)
+    )
+    return JSONResponse(
+        content=result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
+    )
+
+
+@router.delete("/{document_id}/chat-history", status_code=status.HTTP_204_NO_CONTENT)
+def delete_document_chat_history(
+    request: Request,
+    document_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+    document_capability: Annotated[str | None, Header(alias="X-Document-Capability")] = None,
+) -> Response:
+    _service(request).delete_chat_history(
+        document_id, _credentials(authorization, document_capability)
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "no-store"})
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

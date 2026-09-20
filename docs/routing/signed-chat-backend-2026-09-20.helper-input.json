@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The durable PostgreSQL profile exists but chat persistence must fit its ownership, lifecycle, and evidence contracts.",
+    "scope": "New migration, persistence adapter, models, services, routes, application composition, and offline database/API tests must work together.",
+    "reasoning": "Sensitive turns must save only after grounded validation, remain owner/document isolated, and become unavailable when evidence changes or the document expires.",
+    "verification": "Requires migration contract checks plus offline persistence and API authorization tests; live PostgreSQL is a separate optional integration check."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

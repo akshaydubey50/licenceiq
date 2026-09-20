@@ -1,0 +1,42 @@
+{
+  "work_unit": "Investigate reported LicenceIQ API endpoint failures",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 2, "scope": 2, "reasoning": 1, "verification": 2},
+    "total": 7,
+    "risk": "high",
+    "recommendation": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "dispatch": [
+    {
+      "scope": "Backend route registration, credential contracts, error mapping, and offline endpoint checks",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator verification; no backend route defect found"
+    },
+    {
+      "scope": "Frontend request paths, credentials, response contracts, and recovery behavior",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection; retained successful reading state after a later extraction or fields failure"
+    }
+  ],
+  "findings": {
+    "routing": "All document and auth routes are registered. CORS accepts the local browser origin and document-capability header. Static action path segments are not shadowed by the document ID route.",
+    "authentication": "The running frontend and backend both use hybrid mode. Guest documents require X-Document-Capability; signed-in documents require Authorization Bearer JWT. The two credentials are not interchangeable.",
+    "safe_runtime_checks": "Health returned 200. Unknown-document read, extract, and fields requests returned controlled DOCUMENT_NOT_FOUND 404 responses. CORS preflight returned 200.",
+    "provider_check": "A live extraction request using only short fictional text completed successfully, which proves the configured key, model, network path, and strict extraction schema are working.",
+    "specific_document_state": "A local metadata-only lookup of the supplied document returned UPLOADED. It does not yet have a completed reading, so structured extraction correctly cannot run and returns READING_REQUIRED until the read/OCR request succeeds.",
+    "live_document_limit": "The supplied read request was not replayed because it would send an uploaded licence image to the external OCR provider and requires explicit confirmation for that exact payload."
+  },
+  "verification": {
+    "backend": "185 focused offline API tests and Ruff checks passed in the backend audit. Coordinator also ran 70 focused document lifecycle/question tests, which passed.",
+    "frontend": "Coordinator ran TypeScript, scoped ESLint, Prettier, and diff checks after the recovery fix; all passed.",
+    "runtime": "OpenAPI lists 14 application paths, local safe route/CORS probes behaved as expected, the fictional provider extraction succeeded, and the supplied document was confirmed as UPLOADED rather than READ."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

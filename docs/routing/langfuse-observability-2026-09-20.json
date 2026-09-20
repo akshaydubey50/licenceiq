@@ -1,0 +1,30 @@
+{
+  "work_unit": "Privacy-safe optional Langfuse observability",
+  "date": "2026-09-20",
+  "assessment": {
+    "uncertainty": {"score": 1, "evidence": "Current Langfuse v4 interfaces and the existing provider seams needed targeted documentation and code inspection."},
+    "scope": {"score": 2, "evidence": "Settings, dependency lock, application construction, five provider operations, lifecycle, tests, and setup documentation are connected."},
+    "reasoning": {"score": 2, "evidence": "The boundary must exclude document content, identifiers, credentials, and arbitrary exception text while telemetry failures remain non-blocking."},
+    "verification": {"score": 2, "evidence": "Offline tests can prove allowlisting and fail-open behavior; live trace inspection needs user-provided project credentials."},
+    "total": 7,
+    "risk": "high"
+  },
+  "route": {
+    "recommendation": "strong",
+    "helper_selected": {"model": "gpt-5.6-sol", "effort": "high"},
+    "actual_dispatch": {"model": "gpt-5.6-sol", "effort": "high", "attempt": 1, "escalations_used": 0},
+    "ownership": "One worker owned the observability adapter, configuration, dependency lock, tests, and documentation; coordinator inspected the privacy boundary and reran checks."
+  },
+  "outcome": {
+    "behavior": "Optional manual Langfuse observations wrap OCR, extraction, embeddings, query rewrite, and answers. Export is disabled by default and only activates with an explicit enable flag, complete server-side credentials, and a base URL. Inputs, outputs, identifiers, arbitrary errors, and credentials are excluded by a fixed metadata allowlist. Telemetry initialization/export/shutdown failures fail open.",
+    "privacy_review": "Coordinator required closing error observations without passing a provider exception or traceback to the Langfuse context manager; a secret-bearing exception regression test proves this boundary.",
+    "dependency": "langfuse==4.15.4"
+  },
+  "verification": {
+    "lock": "uv lock --check passed",
+    "tests": "Focused observability, foundation, question, and extraction suites passed using the local backend virtual environment with an explicit application path after uv's editable-install synchronization issue.",
+    "static": "Ruff check, Ruff format check, and mypy passed for observability/configuration/application files.",
+    "runtime": "Refreshed local backend health endpoint and frontend each returned HTTP 200.",
+    "live_langfuse": "Not attempted: no Langfuse credentials were supplied, so no external trace or dashboard audit is claimed."
+  }
+}

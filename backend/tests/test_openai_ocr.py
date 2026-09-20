@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -135,6 +136,11 @@ def test_invalid_or_truncated_output_is_not_evidence(
 def test_provider_errors_are_sanitized_and_not_retried(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, status: int
 ) -> None:
+    # Alembic's offline migration tests configure logging through fileConfig, which disables
+    # pre-existing application loggers by default. Re-enable only this logger for an isolated
+    # capture assertion; monkeypatch restores the process state after each parameter case.
+    monkeypatch.setattr(openai_ocr.logger, "disabled", False)
+    caplog.set_level(logging.WARNING, logger=openai_ocr.__name__)
     calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -148,6 +154,8 @@ def test_provider_errors_are_sanitized_and_not_retried(
     assert error.value.code == "OCR_PROVIDER_ERROR"
     assert "PRIVATE_PROVIDER_DETAIL" not in str(error.value)
     assert "PRIVATE_PROVIDER_DETAIL" not in caplog.text
+    assert f"status_code={status}" in caplog.text
+    assert "request_id=None" in caplog.text
     assert calls == 1
 
 

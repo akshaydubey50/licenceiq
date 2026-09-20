@@ -48,10 +48,18 @@ class ExtractionStatus(StrEnum):
 
 
 class QuestionStatus(StrEnum):
-    """Whether one ephemeral answer is supported by the source document."""
+    """Outcome of one ephemeral document-question request."""
 
     ANSWERED = "ANSWERED"
     UNAVAILABLE = "UNAVAILABLE"
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"
+
+
+OUT_OF_SCOPE_ANSWER = (
+    "I’m LicenceIQ, and I can help with questions about the uploaded driving licence. "
+    "Try asking about its holder, licence number, dates, address, issuing authority, "
+    "vehicle classes, or restrictions."
+)
 
 
 NormalizedCoordinate = Annotated[float, Field(ge=0, le=1)]
@@ -364,10 +372,17 @@ QuestionText = Annotated[
 ]
 
 
-class QuestionRequest(DomainModel):
-    """One bounded question; unknown request fields remain invalid."""
+class QuestionHistoryEntry(DomainModel):
+    """One prior user question used only to resolve retrieval references."""
 
     question: QuestionText
+
+
+class QuestionRequest(DomainModel):
+    """One bounded question plus optional same-document user-question context."""
+
+    question: QuestionText
+    history: tuple[QuestionHistoryEntry, ...] = Field(default=(), max_length=3)
 
 
 class QuestionCitation(DomainModel):
@@ -380,7 +395,7 @@ class QuestionCitation(DomainModel):
 
 
 class QuestionResult(DomainModel):
-    """An ephemeral grounded answer that is never persisted by the backend."""
+    """A validated grounded answer safe for return and eligible durable persistence."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -397,8 +412,14 @@ class QuestionResult(DomainModel):
         if self.status is QuestionStatus.ANSWERED:
             if not self.answer.strip() or not self.citations:
                 raise ValueError("Answered questions require text and citations.")
-        elif self.answer != unavailable or self.citations:
+        elif self.status is QuestionStatus.UNAVAILABLE and (
+            self.answer != unavailable or self.citations
+        ):
             raise ValueError("Unavailable questions use the fixed safe answer without citations.")
+        elif self.status is QuestionStatus.OUT_OF_SCOPE and (
+            self.answer != OUT_OF_SCOPE_ANSWER or self.citations
+        ):
+            raise ValueError("Out-of-scope questions use the fixed scope answer without citations.")
         return self
 
 
@@ -415,7 +436,48 @@ class Document(DomainModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class DocumentList(DomainModel):
+    """A bounded set of active documents owned by one authenticated user."""
+
+    documents: tuple[Document, ...] = Field(max_length=50)
+
+
+class ChatHistory(DomainModel):
+    """Validated saved answers for one owned document in chronological order."""
+
+    document_id: str
+    turns: tuple[QuestionResult, ...] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def validate_turn_scope(self) -> "ChatHistory":
+        if any(turn.document_id != self.document_id for turn in self.turns):
+            raise ValueError("Every saved turn must belong to the history document.")
+        return self
+
+
 class DocumentUploadResponse(Document):
     """Upload result with a capability only for capability or hybrid guest uploads."""
 
     access_token: str | None = None
+
+
+class DocumentSplitResponse(DomainModel):
+    """Two isolated child uploads created from one eligible source image."""
+
+    parent_document_id: str
+    documents: tuple[DocumentUploadResponse, DocumentUploadResponse]
+
+    @model_validator(mode="after")
+    def validate_children(self) -> "DocumentSplitResponse":
+        """Keep the split response bound to two distinct, fresh PNG documents."""
+        child_ids = tuple(document.document_id for document in self.documents)
+        if len(set(child_ids)) != 2 or self.parent_document_id in child_ids:
+            raise ValueError("Split child documents must have distinct new IDs.")
+        if any(
+            document.mime_type != "image/png"
+            or document.status is not ProcessingStatus.UPLOADED
+            or document.page_count != 1
+            for document in self.documents
+        ):
+            raise ValueError("Split child documents must be fresh one-page PNG uploads.")
+        return self

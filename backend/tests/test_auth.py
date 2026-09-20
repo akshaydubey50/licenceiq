@@ -1,6 +1,7 @@
 """Offline security-boundary checks for bootstrap login and JWT validation."""
 
 from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -18,6 +19,57 @@ from app.schemas.auth import LoginRequest  # noqa: E402
 NOW = datetime.now(UTC).replace(microsecond=0)
 SIGNING_KEY = "offline-test-signing-key-that-is-at-least-sixty-four-bytes-for-hs512-coverage"
 PASSWORD = "correct horse battery staple"
+
+
+class MemorySessionStore:
+    """Minimal durable-session stand-in for JWT lifecycle tests."""
+
+    def __init__(self) -> None:
+        self.sessions: dict[UUID, tuple[str, str, str, datetime, bool]] = {}
+
+    def create_session(
+        self,
+        *,
+        issuer: str,
+        subject: str,
+        jti: str,
+        issued_at: datetime,
+        expires_at: datetime,
+    ) -> UUID:
+        sid = uuid4()
+        self.sessions[sid] = (issuer, subject, jti, expires_at, False)
+        return sid
+
+    def session_is_active(
+        self,
+        *,
+        issuer: str,
+        subject: str,
+        sid: UUID,
+        jti: str,
+        now: datetime,
+    ) -> bool:
+        saved = self.sessions.get(sid)
+        return bool(
+            saved and saved[:3] == (issuer, subject, jti) and saved[3] > now and not saved[4]
+        )
+
+    def revoke_session(
+        self,
+        *,
+        issuer: str,
+        subject: str,
+        sid: UUID,
+        jti: str,
+        now: datetime,
+    ) -> bool:
+        saved = self.sessions.get(sid)
+        if not saved or not self.session_is_active(
+            issuer=issuer, subject=subject, sid=sid, jti=jti, now=now
+        ):
+            return False
+        self.sessions[sid] = (*saved[:4], True)
+        return True
 
 
 @pytest.fixture(scope="module")
@@ -165,3 +217,48 @@ def test_login_http_response_is_private_and_generic(service: AuthService) -> Non
     assert failure.json() == {"detail": "Authentication failed."}
     assert failure.headers["www-authenticate"] == "Bearer"
     assert PASSWORD not in failure.text
+
+
+def test_durable_session_id_is_required_and_logout_revokes_only_that_token(
+    config: AuthConfig,
+) -> None:
+    sessions = MemorySessionStore()
+    durable_service = AuthService(
+        config,
+        now_provider=lambda: NOW,
+        session_store=sessions,
+    )
+    response = durable_service.login(LoginRequest(username="candidate", password=PASSWORD))
+    claims = jwt.decode(response.access_token, options={"verify_signature": False})
+
+    assert UUID(str(claims["sid"])) in sessions.sessions
+    assert durable_service.authenticate_token(response.access_token).session_id == claims["sid"]
+
+    durable_service.logout(f"Bearer {response.access_token}")
+
+    with pytest.raises(AuthenticationError):
+        durable_service.authenticate_token(response.access_token)
+
+
+def test_logout_endpoint_returns_no_content_and_revokes_the_current_session(
+    config: AuthConfig,
+) -> None:
+    durable_service = AuthService(
+        config,
+        now_provider=lambda: NOW,
+        session_store=MemorySessionStore(),
+    )
+    app = FastAPI()
+    app.state.auth_service = durable_service
+    app.include_router(router)
+    client = TestClient(app)
+    token = durable_service.login(
+        LoginRequest(username="candidate", password=PASSWORD)
+    ).access_token
+
+    response = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 204
+    assert response.headers["cache-control"] == "no-store"
+    with pytest.raises(AuthenticationError):
+        durable_service.authenticate_token(token)

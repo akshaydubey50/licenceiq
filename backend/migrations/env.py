@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.core.config import Settings
 from app.persistence import models as persistence_models  # noqa: F401
 from app.persistence.database import metadata
 
@@ -17,6 +18,11 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 database_url = os.getenv("LICENCEIQ_DATABASE_URL")
+if not database_url and not context.is_offline_mode():
+    # Normal local commands read the ignored root .env through the same settings
+    # boundary as the application. Offline SQL tests retain alembic.ini's safe
+    # placeholder URL and never read developer credentials.
+    database_url = Settings().database_url.get_secret_value()
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 

@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 2, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The current document and its extraction state must be inspected without exposing values; the natural-language wording is ambiguous.",
+    "scope": "Persisted document evidence, direct lookup aliases, semantic retrieval, answer grounding, and regression tests interact.",
+    "reasoning": "The application must improve clear paraphrases while preserving abstention when the requested fact is not present.",
+    "verification": "A privacy-safe state inspection, focused offline retrieval tests, and static checks are required."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

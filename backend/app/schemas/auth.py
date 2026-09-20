@@ -8,11 +8,20 @@ Username = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1,
 
 
 class LoginRequest(BaseModel):
-    """Credentials for the single server-configured bootstrap account."""
+    """Credentials for a bootstrap or durable local account."""
 
     model_config = ConfigDict(extra="forbid")
 
     username: Username
+    password: SecretStr
+
+
+class SignupRequest(BaseModel):
+    """Candidate credentials validated generically by the registration service."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str
     password: SecretStr
 
 
@@ -32,3 +41,4 @@ class AuthenticatedUser(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     subject: str = Field(min_length=1, max_length=200)
+    session_id: str | None = None

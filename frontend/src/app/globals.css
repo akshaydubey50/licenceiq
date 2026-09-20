@@ -230,6 +230,81 @@ h1 span {
   grid-template-columns: 1.12fr 1fr;
   gap: 24px;
 }
+.auth-header-inner {
+  justify-content: space-between;
+}
+.auth-main {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 68px 40px 48px;
+}
+.auth-intro {
+  margin-bottom: 34px;
+}
+.auth-intro h1 {
+  margin-bottom: 18px;
+}
+.auth-intro .hero-description {
+  max-width: 560px;
+}
+.auth-card {
+  width: 100%;
+}
+.auth-form,
+.auth-choice-content {
+  padding: 8px 24px 28px;
+}
+.auth-form {
+  margin: 0;
+}
+.auth-field-hint {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.auth-actions {
+  justify-content: flex-start;
+}
+.auth-inline-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-status-copy {
+  padding: 26px 24px 30px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.auth-status-copy p {
+  margin: 0 0 18px;
+}
+.auth-status-copy p:last-child {
+  margin-bottom: 0;
+}
+.auth-notice {
+  margin: 0 0 20px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #eef6ef;
+  color: var(--success);
+  font-size: 11px;
+}
+.auth-footnote a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-redirect {
+  padding: 24px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.auth-redirect p {
+  margin: 0;
+}
 .upload-panel,
 .details-panel {
   background: var(--surface);
@@ -269,6 +344,106 @@ h1 span {
   letter-spacing: 1.2px;
   color: var(--muted);
   text-align: right;
+}
+.saved-documents {
+  margin: 0 24px 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fcfcfa;
+}
+.saved-documents-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.saved-documents-heading h3 {
+  margin: 0 0 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.saved-documents-heading p,
+.saved-documents-state,
+.saved-documents-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+.saved-documents-heading > span {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+.saved-documents-state .inline-retry {
+  margin-top: 4px;
+  color: var(--accent);
+}
+.saved-document-list {
+  display: grid;
+  gap: 6px;
+  max-height: 214px;
+  margin: 0;
+  padding: 0 3px 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.saved-document-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid #deded6;
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.saved-document-list button:hover:not(:disabled),
+.saved-document-list button:focus-visible {
+  border-color: #8f8bb3;
+  background: #f7f6ff;
+}
+.saved-document-list button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+.saved-document-list button.is-active {
+  border-color: #7772a7;
+  background: #f5f4ff;
+  opacity: 1;
+}
+.saved-document-list button > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.saved-document-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-document-list small {
+  color: var(--muted);
+  font-size: 8px;
+}
+.saved-document-list em {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 600;
 }
 .upload-placeholder {
   margin: 0 24px;
@@ -927,6 +1102,11 @@ h1 span {
   color: var(--muted);
   line-height: 1.5;
 }
+.clear-history-button {
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
 .chat-content {
   margin-top: 16px;
   padding-top: 16px;
@@ -1237,6 +1417,16 @@ h1 span {
   .main-content {
     padding: 34px 20px 0;
   }
+  .auth-header-inner {
+    min-height: 80px;
+    padding-bottom: 18px;
+  }
+  .auth-main {
+    padding: 42px 20px 32px;
+  }
+  .auth-intro {
+    margin-bottom: 26px;
+  }
   .hero {
     display: block;
     margin-bottom: 28px;
@@ -1267,11 +1457,24 @@ h1 span {
   .upload-placeholder {
     margin: 0 20px;
   }
+  .saved-documents {
+    margin: 0 20px 16px;
+  }
   .details-content {
     padding: 0 20px;
   }
   .chat-preview {
     padding: 16px 20px;
+  }
+  .chat-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .clear-history-button {
+    width: 100%;
+    margin-left: 46px;
+    padding-left: 0;
+    text-align: left;
   }
   .chat-question,
   .chat-answer {

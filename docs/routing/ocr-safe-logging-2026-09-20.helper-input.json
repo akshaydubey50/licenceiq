@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 1, "reasoning": 1, "verification": 1},
+  "evidence": {
+    "uncertainty": "The provider emits a sanitized logger.warning but caplog is empty in the full suite; logger capture configuration must be confirmed.",
+    "scope": "OCR provider logging regression test and potentially its logger configuration are isolated.",
+    "reasoning": "The repair must preserve safe status/request-id observability without logging a provider body or document content.",
+    "verification": "The three parametrized OCR failures provide a deterministic regression check plus focused lint/type validation."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

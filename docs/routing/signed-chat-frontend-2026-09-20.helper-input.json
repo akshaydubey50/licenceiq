@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "The existing workspace has local-only transcript state and must consume a new authenticated API contract without affecting guest behavior.",
+    "scope": "Auth gate, document workspace state, API decoding, type contracts, restore flows, and saved-document selection are connected.",
+    "reasoning": "Async hydration must avoid mixing documents, stale previews, or answer transcripts; destructive clear/remove paths need correct user feedback.",
+    "verification": "The frontend lacks behavioural tests, so static checks and a production build cover only type/render integration; backend contract tests carry API verification."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

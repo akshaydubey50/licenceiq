@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "Conversation context is selected by the user request, while its bounded API shape and fallback behavior must be defined.",
+    "scope": "Question schema, API, query normalization provider, retrieval ranking, guardrails, and chat client work together.",
+    "reasoning": "Untrusted history must aid retrieval without becoming evidence or crossing document boundaries; retrieval must remain citation-grounded.",
+    "verification": "Existing backend question tests need new multi-turn coverage; frontend has static checks but no behavioral harness."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

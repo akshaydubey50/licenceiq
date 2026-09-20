@@ -1,0 +1,39 @@
+{
+  "work_unit": "Multiple-licence composite image split and isolated review",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+    "total": 7,
+    "risk": "high",
+    "recommendation": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "dispatch": [
+    {
+      "scope": "Backend split endpoint and isolated child-document persistence",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection"
+    },
+    {
+      "scope": "Frontend split response validation and isolated child workspace state",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator contract correction and verification"
+    }
+  ],
+  "implementation": {
+    "contract": "POST /api/documents/{id}/split returns a parent ID and exactly two fresh upload-style PNG child documents.",
+    "safety": "Splitting requires the exact stored multiple-licence warning, accepts only 2.0-4.0 aspect-ratio side-by-side images, keeps the parent source, and gives children isolated IDs, bytes, credentials, readings, reviews, retrieval, and Q&A."
+  },
+  "verification": {
+    "backend_focused": "48 tests passed across split, extraction, and document suites; Ruff and production mypy passed.",
+    "frontend_focused": "TypeScript, focused ESLint, and Prettier checks passed.",
+    "live": "Fresh local API successfully completed parent upload/read/extract/split and independent child read/extract for both fictional licences; temporary verification records were removed.",
+    "known_unrelated_check": "Full frontend lint remains blocked by a pre-existing concurrent logout-panel react-hooks/set-state-in-effect finding."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

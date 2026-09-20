@@ -1,0 +1,27 @@
+{
+  "work_unit": "Signed-user resumable document chat",
+  "date": "2026-09-20",
+  "assessment": {
+    "backend": {"scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2}, "total": 7, "risk": "high"},
+    "frontend": {"scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2}, "total": 7, "risk": "high"}
+  },
+  "routing": {
+    "recommendation": "strong",
+    "actual_dispatch": [
+      {"worker": "signed_chat_backend", "model": "gpt-5.6-sol", "effort": "high", "attempt": 1},
+      {"worker": "signed_chat_frontend", "model": "gpt-5.6-sol", "effort": "high", "attempt": 1}
+    ],
+    "escalations_used": 0
+  },
+  "contract": {
+    "persistence": "Only signed JWT-owned documents in the PostgreSQL metadata profile persist validated Q&A turns. Guest/capability questions remain ephemeral.",
+    "lifecycle": "Turns are linked to the current reading fingerprint, are cleared on successful reread, and are deleted through document lifecycle cascade/expiry.",
+    "endpoints": ["GET /api/documents", "GET /api/documents/{id}/chat-history", "DELETE /api/documents/{id}/chat-history"],
+    "privacy": "Turns are saved only after answer validation and guardrails; provider requests, prompts, vectors, credentials, capabilities, and raw provider responses are not persisted."
+  },
+  "verification": {
+    "backend": "Full offline backend pytest suite passed; Ruff check and format check passed; strict mypy passed for 45 source files.",
+    "frontend": "TypeScript type check, ESLint, Prettier check, and Next.js production build passed.",
+    "live_durable_profile": "Not run in this work unit. A PostgreSQL/MinIO/JWT environment must be configured and migration 20260920_0004 applied before signed persistence can be exercised live."
+  }
+}

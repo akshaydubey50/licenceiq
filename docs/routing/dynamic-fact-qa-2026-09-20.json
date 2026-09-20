@@ -1,0 +1,29 @@
+{
+  "work_unit": "Evidence-backed dynamic extra-fact Q&A",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2, "total": 7},
+    "risk": "high",
+    "recommended_route": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "execution": {
+    "dispatch": {"worker": "dynamic_fact_qa", "model": "gpt-5.6-sol", "effort": "high", "attempt": 1},
+    "integration_repairs": [
+      "Corrected strict enum construction in concurrent conversation-rewrite tests.",
+      "Restored an immutable-extraction test reference and updated an expected order for the new deterministic RRF ranking."
+    ],
+    "attempts_used": 1,
+    "escalations_used": 0
+  },
+  "behavior": {
+    "extraction": "The provider prompt explicitly captures directly printed, non-decorative labelled facts such as body height, blood group, relationship names, restrictions, and endorsements into other_information with source evidence.",
+    "questions": "A deterministic alias catalogue and exact label matching resolve unique extra facts directly before embeddings or the answer provider. Ambiguous facts retain grounded retrieval instead of selecting one arbitrarily.",
+    "safety": "Facts remain immutable extraction evidence only. Reviewer edits, portraits, signatures, QR codes, and unsupported content cannot supply answers."
+  },
+  "verification": {
+    "focused_suite": "Questions and extraction-provider tests passed after integration repairs, including body height, blood type, father name, arbitrary labels, ambiguity, retrieval isolation, and rewrite fallback.",
+    "static": "Ruff check/format and mypy passed for changed production files.",
+    "runtime": "Updated backend health returned ok and frontend root returned HTTP 200. Browser automation was unavailable in this session, so UI acceptance remains a user refresh/re-upload check."
+  },
+  "outcome": "Completed locally; no commit or push was performed."
+}

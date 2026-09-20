@@ -15,6 +15,7 @@ from app.schemas.common import ErrorCode
 logging.getLogger("openai").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 OCR_INSTRUCTIONS = """You transcribe visible text from a document image.
 Instructions:
@@ -115,9 +116,20 @@ class OpenAIOCRProvider:
                 raise self._provider_error()
             return OCRResult(lines=tuple(transcription.lines))
         except APITimeoutError:
+            logger.warning("OpenAI OCR request timed out")
             raise self._timeout() from None
-        except (APIError, ValidationError, ValueError, TypeError, AttributeError):
+        except APIError as error:
+            # Error bodies can contain document-derived text. Keep only safe operational metadata.
+            logger.warning(
+                "OpenAI OCR request failed type=%s status_code=%s request_id=%s",
+                type(error).__name__,
+                getattr(error, "status_code", None),
+                getattr(error, "request_id", None),
+            )
+            raise self._provider_error() from None
+        except (ValidationError, ValueError, TypeError, AttributeError) as error:
             # Provider bodies and Pydantic validation errors may contain source text.
+            logger.warning("OpenAI OCR response validation failed type=%s", type(error).__name__)
             raise self._provider_error() from None
 
     @staticmethod

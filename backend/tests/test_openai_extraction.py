@@ -188,6 +188,26 @@ def test_prompt_keeps_document_commands_inside_untrusted_evidence(
     assert user_text.count("END_UNTRUSTED_DOCUMENT_EVIDENCE") == 1
 
 
+def test_prompt_collects_printed_labelled_facts_without_visual_inference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json=response_body())
+
+    mock_transport(monkeypatch, handler)
+    OpenAIExtractionProvider(settings()).extract_structured_data(context())
+
+    instructions = " ".join(requests[0]["instructions"].split())
+    assert "directly printed, non-decorative relevant labelled facts" in instructions
+    assert (
+        "body height, blood group, relationship names, restrictions, endorsements" in instructions
+    )
+    assert "Do not infer such facts from portraits, signatures, QR codes" in instructions
+
+
 def test_settings_defaults_and_bounds() -> None:
     config = settings()
     assert config.extraction_model == "gpt-4.1-mini"

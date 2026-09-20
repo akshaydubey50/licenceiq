@@ -1,0 +1,31 @@
+{
+  "work_unit": "Diagnose post-login authentication-required response in the local runtime",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 2, "scope": 1, "reasoning": 2, "verification": 1},
+    "total": 6,
+    "risk": "high",
+    "recommendation": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "dispatch": [
+    {
+      "scope": "Read-only audit of login token handoff and authorization validation",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "Interrupted after the coordinator obtained sufficient live runtime evidence; no worker changes were made."
+    }
+  ],
+  "finding": {
+    "runtime": "During diagnosis, host development processes and a restarting Docker Desktop engine alternately owned the application ports. That allowed the browser to retain a token issued by an earlier process while subsequent protected requests reached a different runtime.",
+    "resolution": "The full Docker stack was rebuilt and started. The running frontend and backend now both report hybrid mode, and both health endpoints return HTTP 200."
+  },
+  "verification": {
+    "containers": "Frontend and backend are healthy in the same Compose project.",
+    "mode_parity": "BACKEND_AUTH_MODE=hybrid and NEXT_PUBLIC_AUTH_MODE=hybrid were verified from the running containers.",
+    "limitation": "No real account credentials or user document were used in the live diagnosis. A fresh browser login is required to validate a new account token against the unified runtime."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 2,
+    "reasoning": 1,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The upstream error is intentionally sanitized, while the confirmed root cause is a restricted runtime rather than invalid OpenAI credentials or an unsupported model.",
+    "scope": "The durable remedy spans a local startup preflight, safe provider diagnostics, tests, and user-facing setup instructions.",
+    "reasoning": "It must detect blocked outbound access without transmitting a document or exposing keys, provider bodies, or licence text.",
+    "verification": "Offline logging tests plus a live document-free preflight and the existing fictional-sample end-to-end path are needed."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

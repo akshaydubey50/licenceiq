@@ -1,0 +1,60 @@
+{
+  "work_unit": "Full LicenceIQ code, security, business-logic, and maintainability audit with scoped corrections",
+  "assessment": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2,
+    "total": 8,
+    "risk": "high",
+    "evidence": {
+      "uncertainty": "The audit covered untrusted document processing, browser state, credentials, object storage, and newly added durable-profile code.",
+      "scope": "Backend, frontend, configuration, migrations, persistence, tests, and local infrastructure were reviewed.",
+      "reasoning": "Authorization isolation, expiry, asynchronous UI lifecycle, conditional persistence, and production transport controls interact.",
+      "verification": "The result required backend tests, static checks, frontend build checks, and integration review of concurrent durable-profile changes."
+    }
+  },
+  "recommendation": {
+    "tier": "strong",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  },
+  "dispatch": [
+    {
+      "scope": "backend/app and backend/tests",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "attempts": 1,
+      "escalations": 0
+    },
+    {
+      "scope": "frontend",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "attempts": 2,
+      "escalations": 0
+    }
+  ],
+  "outcome": {
+    "fixed": [
+      "production MinIO TLS enforcement",
+      "filesystem ownership snapshot integrity",
+      "resilient MinIO expiry cleanup",
+      "atomic frontend rereads and stale-state cleanup",
+      "unsaved-change and guest-exit protections",
+      "complete OpenAI disclosure and baseline browser headers",
+      "durable-session integration compile, migration, and formatting errors"
+    ],
+    "checks": [
+      "full backend suite passed",
+      "Ruff lint and formatting passed",
+      "strict mypy passed for 41 backend source files",
+      "frontend typecheck, lint, formatting, and production build passed"
+    ],
+    "limitations": [
+      "No frontend behavioural test framework is installed.",
+      "Cross-process MinIO compare-and-swap remains future durable-profile work.",
+      "No live provider or public deployment check was run."
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "work_unit": "Conversation-aware, source-grounded document retrieval",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+    "total": 7,
+    "risk": "high",
+    "recommendation": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "dispatch": [
+    {
+      "scope": "Question contract, retrieval-only rewrite provider, lexical-semantic rank fusion, and offline tests",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection and focused verification"
+    },
+    {
+      "scope": "Active-document browser history request contract",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "accepted after coordinator inspection and focused verification"
+    }
+  ],
+  "implementation": {
+    "contract": "The questions endpoint accepts at most three prior user questions from the active document. Answers, citations, extracted values, and other-document history are never sent as conversational context.",
+    "retrieval": "Direct evidence-backed fields bypass rewriting. Other questions may be rewritten into a standalone retrieval query, receive deterministic licence-domain synonym expansion and reciprocal-rank fusion of lexical and semantic rankings, then remain answerable only from selected immutable blocks.",
+    "safety": "The rewrite provider receives question text only, uses strict structured output, no persistence, and no retries. Rewrite configuration, timeout, malformed output, and provider failures fall back to the original question. The answer provider receives the original user question and active-document source blocks only."
+  },
+  "verification": {
+    "backend_focused": "66 offline tests passed across question, rewrite adapter, answer adapter, and embedding adapter suites. Ruff, format, and mypy checks passed.",
+    "frontend_focused": "TypeScript, scoped ESLint for the changed workspace/types, and Prettier passed.",
+    "runtime": "The local API was restarted and its health endpoint returned status ok.",
+    "known_unrelated_check": "The project-wide frontend lint issue in logout-panel was not part of this work unit and was not used to assess these changed files."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

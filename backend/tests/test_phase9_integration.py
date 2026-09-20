@@ -28,6 +28,7 @@ class MemoryObjectStore:
     def __init__(self) -> None:
         self.objects: dict[str, bytes] = {}
         self.fail_write = False
+        self.fail_delete_keys: set[str] = set()
 
     def initialize(self) -> None:
         return None
@@ -47,6 +48,8 @@ class MemoryObjectStore:
             raise ObjectStoreError("read") from None
 
     def delete(self, key: str) -> None:
+        if key in self.fail_delete_keys:
+            raise ObjectStoreError("delete")
         self.objects.pop(key, None)
 
     def list_keys(self) -> tuple[str, ...]:
@@ -151,6 +154,43 @@ def test_minio_repository_cleans_content_when_metadata_publish_fails() -> None:
     assert metadata_store.objects == {}
 
 
+def test_minio_expiry_cleanup_continues_after_one_delete_failure() -> None:
+    content_store = MemoryObjectStore()
+    metadata_store = MemoryObjectStore()
+    repository = MinioDocumentRepository(content_store, metadata_store)
+    now = datetime.now(UTC)
+
+    failed_record = StoredDocumentRecord(
+        document_id=str(uuid4()),
+        filename="failed.png",
+        mime_type="image/png",
+        size_bytes=7,
+        created_at=now - timedelta(hours=2),
+        expires_at=now - timedelta(hours=1),
+        page_count=1,
+        storage_key=str(uuid4()),
+        owner_subject="candidate-001",
+    )
+    removable_record = failed_record.model_copy(
+        update={"document_id": str(uuid4()), "storage_key": str(uuid4())}
+    )
+    live_record = failed_record.model_copy(
+        update={
+            "document_id": str(uuid4()),
+            "storage_key": str(uuid4()),
+            "expires_at": now + timedelta(hours=1),
+        }
+    )
+    for record in (failed_record, removable_record, live_record):
+        repository.save(record, b"content")
+    content_store.fail_delete_keys.add(failed_record.storage_key)
+
+    assert repository.cleanup_expired(now) == 1
+    assert repository.get(failed_record.document_id) == failed_record
+    assert repository.get(removable_record.document_id) is None
+    assert repository.get(live_record.document_id) == live_record
+
+
 def test_production_requires_minio_and_jwt_safeguards() -> None:
     with pytest.raises(ValidationError, match="Production requires JWT authentication"):
         Settings(_env_file=None, environment="production", cors_origins=["https://app.example"])
@@ -165,6 +205,10 @@ def test_production_requires_minio_and_jwt_safeguards() -> None:
         bootstrap_password_hash=SecretStr("$argon2id$v=19$m=65536,t=3,p=4$placeholder"),
         bootstrap_subject="candidate-001",
         document_storage_backend="minio",
+        document_metadata_backend="postgres",
+        database_url=SecretStr(
+            "postgresql+psycopg://licenceiq:offline-password@db.example:5432/licenceiq"
+        ),
         minio_endpoint="minio.internal:9000",
         minio_access_key=SecretStr("access-key"),
         minio_secret_key=SecretStr("secret-key"),
@@ -172,3 +216,8 @@ def test_production_requires_minio_and_jwt_safeguards() -> None:
 
     assert settings.auth_mode == "jwt"
     assert settings.document_storage_backend == "minio"
+
+    insecure_values = settings.model_dump()
+    insecure_values["minio_secure"] = False
+    with pytest.raises(ValidationError, match="Production requires secure MinIO transport"):
+        Settings(_env_file=None, **insecure_values)

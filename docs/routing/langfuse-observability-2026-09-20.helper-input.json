@@ -1,0 +1,13 @@
+{
+  "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+  "evidence": {
+    "uncertainty": "Langfuse SDK v4 interfaces and the project provider boundaries require a current-docs-compatible, sanitized design.",
+    "scope": "Configuration, dependency lock, app construction, OCR/extraction/retrieval/answer provider calls, tests, and setup documentation are connected.",
+    "reasoning": "The design must prevent raw driving-licence content, questions, answers, identifiers, and credentials from entering telemetry while failing open if telemetry is unavailable.",
+    "verification": "Focused offline tests can prove payload allowlisting and disabled behavior; a live trace audit requires user-provided Langfuse credentials."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}

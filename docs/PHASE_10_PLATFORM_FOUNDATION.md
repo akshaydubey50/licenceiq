@@ -1,5 +1,7 @@
 # Phase 10A: durable platform foundation
 
+> Historical foundation note: this document records the initial schema and local-compose setup. Its deferred runtime work is implemented in [Phase 10B](PHASE_10B_DURABLE_RUNTIME.md).
+
 ## Goal
 
 Prepare local, private infrastructure for a later durable LicenceIQ profile without weakening the existing assessment demo. Original document bytes belong in MinIO. PostgreSQL, with pgvector, will become the source of truth for ownership, lifecycle, review records, retrieval evidence, embeddings, and revocable sessions.
@@ -18,7 +20,7 @@ No filename, bearer token, guest capability, OCR text, or embedding is allowed i
 
 [`compose.yaml`](../compose.yaml) starts a loopback-only PostgreSQL/pgvector container and a loopback-only MinIO container. The ignored credentials file is [the infrastructure template](../infra/.env.example); [the infrastructure guide](../infra/README.md) describes the local commands.
 
-Docker is not available on the development host used for this change, so the compose stack has not been started here. The committed configuration is syntax-reviewed; live MinIO/PostgreSQL acceptance remains a separate validation step.
+At the time of the foundation change, the stack had not been started. The later Phase 10B runtime was migrated and smoke-tested against the local PostgreSQL/pgvector and MinIO containers.
 
 ## Durable profile sequence
 
@@ -28,7 +30,7 @@ Docker is not available on the development host used for this change, so the com
 4. Add a session store that validates an active session ID after JWT signature validation and supports logout/revocation.
 5. Add reconciliation and indexed expiry cleanup before enabling multiple API workers.
 
-The application does not select the durable profile yet. That avoids a partial configuration where MinIO is live but metadata, ownership, or retrieval still depends on local JSON sidecars.
+The application now selects the durable profile only when both the MinIO byte store and PostgreSQL metadata settings are complete. See [Phase 10B](PHASE_10B_DURABLE_RUNTIME.md) for the active contract and remaining retrieval work.
 
 ## Retrieval decision
 
@@ -38,7 +40,7 @@ At the current 256-block per-document limit, an exact cosine scan after the docu
 
 ## Session decision
 
-The current bootstrap JWT remains short-lived and browser-memory-only. The durable schema reserves a session ID and JWT ID for active-session lookup, logout, expiry, and revocation. It does not introduce refresh tokens, registration, password recovery, cookies, or account profiles. A real production identity migration remains Keycloak OIDC plus Auth.js and JWKS validation.
+At this foundation milestone, the bootstrap JWT was short-lived and browser-memory-only. The durable schema reserved a session ID and JWT ID for active-session lookup, logout, expiry, and revocation. A later local-development update added opt-in PostgreSQL-backed registration; it still does not introduce refresh tokens, password recovery, cookies, or account profiles. A real production identity migration remains Keycloak OIDC plus Auth.js and JWKS validation.
 
 ## Acceptance boundary
 

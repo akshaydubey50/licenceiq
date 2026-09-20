@@ -1,0 +1,26 @@
+{
+  "work_unit": "OCR runtime connection diagnosis",
+  "date": "2026-09-20",
+  "assessment": {
+    "uncertainty": 1,
+    "scope": 0,
+    "reasoning": 1,
+    "verification": 1,
+    "total": 3,
+    "recommended_tier": "balanced",
+    "impact": "Runtime provider connectivity only; no code or data-contract changes."
+  },
+  "execution": {
+    "mode": "direct coordinator diagnosis",
+    "dispatch": null,
+    "attempts": 1,
+    "escalations": 0
+  },
+  "evidence": {
+    "observed_failure": "POST /api/documents/{id}/read returned 502 OCR_PROVIDER_ERROR while the server ran in a restricted sandbox.",
+    "provider_probe": "A no-document OpenAI Responses probe completed after running outside the sandbox.",
+    "remediation": "Restarted the local FastAPI server with authorized outbound network access.",
+    "verification": "GET /health returned status ok."
+  },
+  "outcome": "Local OCR provider connection restored. User must retry document reading through the running browser app."
+}

@@ -1,0 +1,103 @@
+{
+  "work_unit": "Local account registration, session UI, and safe auth redirects",
+  "assessment": {
+    "scores": {
+      "uncertainty": 2,
+      "scope": 2,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "evidence": {
+      "uncertainty": "The existing application supports only a server-configured bootstrap identity; registration and redirect behavior need new explicit contracts.",
+      "scope": "The change spans PostgreSQL identity storage, a migration, API contracts, JWT issuance, frontend session state, and App Router pages.",
+      "reasoning": "Credentials must be hashed, usernames must be unique, registration races must be safe, sessions revocable, and redirects limited to local paths.",
+      "verification": "Security-focused backend tests, migration checks, frontend static checks, build, and a provider-free local integration flow are required."
+    },
+    "risk": "high",
+    "attempts_used": 0,
+    "escalate": false,
+    "escalations_used": 0,
+    "recommendation": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "tier": "strong",
+      "helper_result": "candidate"
+    }
+  },
+  "execution": {
+    "workers": [
+      {
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "tier": "strong",
+        "scope": "PostgreSQL credential persistence, account API, JWT integration, migration, and security-focused tests.",
+        "owned_files": [
+          "backend/app/core/auth.py",
+          "backend/app/api/auth.py",
+          "backend/app/core/config.py",
+          "backend/app/main.py",
+          "backend/app/persistence/models.py",
+          "backend/app/persistence/sessions.py",
+          "backend/app/schemas/auth.py",
+          "backend/migrations/versions/20260920_0003_local_accounts.py",
+          "backend/tests/test_registration.py"
+        ],
+        "attempts": 1,
+        "escalations": 0,
+        "outcome": "accepted"
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "tier": "strong",
+        "scope": "Memory-only App Router session state, sign-in/sign-up/sign-out pages, safe local redirects, and auth UI integration.",
+        "owned_files": [
+          "frontend/src/app/layout.tsx",
+          "frontend/src/app/login/page.tsx",
+          "frontend/src/app/signup/page.tsx",
+          "frontend/src/app/logout/page.tsx",
+          "frontend/src/components/auth-session-provider.tsx",
+          "frontend/src/components/auth-form.tsx",
+          "frontend/src/components/auth-page-shell.tsx",
+          "frontend/src/components/logout-panel.tsx",
+          "frontend/src/components/auth-gate.tsx",
+          "frontend/src/lib/auth-client.ts",
+          "frontend/src/lib/auth-navigation.ts",
+          "frontend/src/lib/env.ts",
+          "frontend/src/types/auth.ts"
+        ],
+        "attempts": 3,
+        "escalations": 0,
+        "outcome": "accepted after React lint corrections"
+      }
+    ],
+    "coordinator_work": [
+      "Inspected the combined database, API, JWT, client-session, and redirect contracts.",
+      "Corrected Alembic online configuration so normal local migration commands read the ignored root .env without exposing its database URL.",
+      "Applied and verified migration 20260920_0003 in the configured local PostgreSQL database.",
+      "Allowed an enabled registration-only local profile to omit bootstrap credentials while retaining bootstrap support when configured.",
+      "Updated setup and reviewer documentation."
+    ]
+  },
+  "validation": {
+    "passed": [
+      "Focused offline backend registration, authentication, session, foundation, and migration tests: 47 passed.",
+      "Worker-reported full backend suite: 271 passed, with only existing TestClient deprecation warnings.",
+      "Ruff for backend app/tests and strict mypy for backend app.",
+      "Frontend ESLint, Prettier, Next type generation/TypeScript, and production build, including /login, /signup, and /logout routes.",
+      "Local Alembic upgrade to revision 20260920_0003 and PostgreSQL inspection verifying local_credentials exists.",
+      "Live provider-free sign-up, sign-in, durable session revocation, and cleanup of a disposable local account.",
+      "git diff --check."
+    ],
+    "not_run": [
+      "A live browser registration/login/logout walkthrough: it requires enabling matching ignored backend and frontend local registration settings."
+    ]
+  },
+  "limitations": [
+    "Local accounts are development-only and are rejected in production.",
+    "They do not provide email verification, password recovery, rate limits, audit records, or public account administration."
+  ],
+  "outcome": {
+    "status": "implemented and verified"
+  }
+}

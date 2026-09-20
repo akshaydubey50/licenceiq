@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import PurePath
-from typing import TypeAlias
+from typing import TypeAlias, cast
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -22,8 +22,20 @@ from pypdf.errors import PdfReadError
 from app.core.auth import AuthenticationError, AuthService
 from app.core.config import Settings
 from app.core.errors import ApplicationError
-from app.models.document import Document, DocumentUploadResponse, ProcessingStatus
-from app.repositories.documents import DocumentRepository, StoredDocumentRecord
+from app.models.document import (
+    ChatHistory,
+    Document,
+    DocumentList,
+    DocumentSplitResponse,
+    DocumentUploadResponse,
+    ProcessingStatus,
+)
+from app.repositories.documents import (
+    ChatPersistenceUnavailable,
+    DocumentRepository,
+    DurableChatRepository,
+    StoredDocumentRecord,
+)
 from app.repositories.object_store import ObjectStoreError
 from app.schemas.common import ErrorCode
 
@@ -34,6 +46,13 @@ _ALLOWED_TYPES = {
     ".jpeg": "image/jpeg",
 }
 _IMAGE_FORMATS = {"image/png": "PNG", "image/jpeg": "JPEG"}
+_MULTIPLE_LICENCES_WARNING = (
+    "More than one licence was detected. Upload a document containing a single licence."
+)
+_MIN_SPLIT_ASPECT_RATIO = 1.4
+_MAX_SPLIT_ASPECT_RATIO = 4.0
+_MIN_CHILD_SPLIT_ASPECT_RATIO = 0.6
+_MAX_CHILD_SPLIT_ASPECT_RATIO = 2.0
 
 # pypdf diagnostics can include fragments from malformed private documents.
 logging.getLogger("pypdf").setLevel(logging.CRITICAL)
@@ -122,6 +141,56 @@ class DocumentService:
         record = self.authorized_record(document_id, credentials)
         return self._public_document(record)
 
+    def list_owned(self, credentials: DocumentCredential) -> DocumentList:
+        """List at most 50 active documents for one authenticated JWT subject."""
+        subject = self.require_authenticated_subject(credentials)
+        repository = self._durable_chat_repository()
+        try:
+            records = repository.list_owned(subject, self.now_provider(), limit=50)
+        except ChatPersistenceUnavailable:
+            raise self.chat_unavailable() from None
+        return DocumentList(documents=tuple(self._public_document(record) for record in records))
+
+    def get_chat_history(self, document_id: str, credentials: DocumentCredential) -> ChatHistory:
+        """Return current-reading history without disclosing cross-owner document IDs."""
+        subject = self.require_authenticated_subject(credentials)
+        record = self._authorized_record(document_id, credentials)
+        if record.owner_subject != subject:
+            raise self.not_found()
+        repository = self._durable_chat_repository()
+        try:
+            turns = repository.get_chat_history(
+                document_id,
+                subject,
+                self.now_provider(),
+                limit=100,
+            )
+        except ChatPersistenceUnavailable:
+            raise self.chat_unavailable() from None
+        return ChatHistory(document_id=document_id, turns=turns)
+
+    def delete_chat_history(self, document_id: str, credentials: DocumentCredential) -> None:
+        """Delete only history belonging to the authenticated document owner."""
+        subject = self.require_authenticated_subject(credentials)
+        record = self._authorized_record(document_id, credentials)
+        if record.owner_subject != subject:
+            raise self.not_found()
+        repository = self._durable_chat_repository()
+        try:
+            repository.clear_chat_history(document_id, subject)
+        except ChatPersistenceUnavailable:
+            raise self.chat_unavailable() from None
+
+    def clear_chat_after_reread(self, record: StoredDocumentRecord) -> None:
+        """Invalidate citations after a signed user's successful explicit read request."""
+        if record.owner_subject is None or self.settings.document_metadata_backend != "postgres":
+            return
+        repository = self._durable_chat_repository()
+        try:
+            repository.clear_chat_history(record.document_id, record.owner_subject)
+        except ChatPersistenceUnavailable:
+            raise self.chat_unavailable() from None
+
     def authorized_record(
         self, document_id: str, credentials: DocumentCredential
     ) -> StoredDocumentRecord:
@@ -138,6 +207,59 @@ class DocumentService:
             raise ApplicationError(
                 ErrorCode.INTERNAL_ERROR, "The document could not be read. Please try again.", 500
             ) from exc
+
+    def split(self, document_id: str, credentials: DocumentCredential) -> DocumentSplitResponse:
+        """Split one confirmed two-panel image into isolated, newly authorized documents."""
+        source = self._authorized_record(document_id, credentials)
+        if source.mime_type not in _IMAGE_FORMATS:
+            raise ApplicationError(
+                ErrorCode.UNSUPPORTED_FILE,
+                "Only side-by-side image documents can be split.",
+                415,
+            )
+        if (
+            source.extraction is None
+            or _MULTIPLE_LICENCES_WARNING not in source.extraction.warnings
+        ):
+            raise ApplicationError(
+                ErrorCode.INVALID_REQUEST,
+                "This document is not eligible for splitting.",
+                409,
+            )
+
+        try:
+            content = self.repository.read_content(source)
+        except (OSError, ObjectStoreError) as exc:
+            raise ApplicationError(
+                ErrorCode.INTERNAL_ERROR,
+                "The document could not be read. Please try again.",
+                500,
+            ) from exc
+
+        left_content, right_content = self._split_image(content, source.mime_type)
+        stem = PurePath(source.filename).stem or "licence"
+        children: list[DocumentUploadResponse] = []
+        try:
+            for label, child_content in (
+                ("left", left_content),
+                ("right", right_content),
+            ):
+                children.append(
+                    self._validate_and_store(
+                        f"{stem}-{label}.png",
+                        "image/png",
+                        child_content,
+                        source.owner_subject,
+                    )
+                )
+        except Exception:
+            self._cleanup_split_children(children)
+            raise
+
+        return DocumentSplitResponse(
+            parent_document_id=source.document_id,
+            documents=(children[0], children[1]),
+        )
 
     def delete(self, document_id: str, credentials: DocumentCredential) -> None:
         record = self._authorized_record(document_id, credentials)
@@ -225,6 +347,40 @@ class DocumentService:
                 401,
             ) from None
 
+    def require_authenticated_subject(self, credentials: DocumentCredential) -> str:
+        """Reject guest capabilities for endpoints that expose durable account state."""
+        resolved = self._normalize_credentials(credentials)
+        if resolved.capability is not None:
+            if resolved.authorization is not None:
+                raise self.invalid_credentials()
+            raise ApplicationError(
+                ErrorCode.AUTHENTICATION_REQUIRED,
+                "Authentication is required.",
+                401,
+            )
+        subject = self._authenticated_subject(resolved)
+        if subject is None:
+            raise ApplicationError(
+                ErrorCode.AUTHENTICATION_REQUIRED,
+                "Authentication is required.",
+                401,
+            )
+        return subject
+
+    def _durable_chat_repository(self) -> DurableChatRepository:
+        """Refuse fallback persistence outside the explicit PostgreSQL profile."""
+        required = (
+            "list_owned",
+            "save_chat_turn_if_current",
+            "get_chat_history",
+            "clear_chat_history",
+        )
+        if self.settings.document_metadata_backend != "postgres" or not all(
+            hasattr(self.repository, name) for name in required
+        ):
+            raise self.chat_unavailable()
+        return cast(DurableChatRepository, self.repository)
+
     @staticmethod
     def _normalize_credentials(credentials: DocumentCredential) -> DocumentCredentials:
         """Preserve existing direct service calls that pass an Authorization string."""
@@ -302,6 +458,60 @@ class DocumentService:
                 ErrorCode.INVALID_FILE, "The image is malformed or unreadable.", 400
             ) from exc
         return 1
+
+    def _split_image(self, content: bytes, mime_type: str) -> tuple[bytes, bytes]:
+        """Crop an unambiguous horizontal two-panel layout at its exact midpoint."""
+        self._validate_content(content, mime_type)
+        try:
+            with Image.open(BytesIO(content)) as image:
+                image.load()
+                width, height = image.size
+                aspect_ratio = width / height
+                if not _MIN_SPLIT_ASPECT_RATIO <= aspect_ratio <= _MAX_SPLIT_ASPECT_RATIO:
+                    raise self._unsupported_split_geometry()
+                midpoint = width // 2
+                child_aspect_ratio = midpoint / height
+                if not (
+                    _MIN_CHILD_SPLIT_ASPECT_RATIO
+                    <= child_aspect_ratio
+                    <= _MAX_CHILD_SPLIT_ASPECT_RATIO
+                ):
+                    raise self._unsupported_split_geometry()
+                left = image.crop((0, 0, midpoint, height))
+                right = image.crop((midpoint, 0, width, height))
+                return self._png_bytes(left), self._png_bytes(right)
+        except ApplicationError:
+            raise
+        except (OSError, UnidentifiedImageError, ValueError) as exc:
+            raise self._unsupported_split_geometry() from exc
+
+    @staticmethod
+    def _png_bytes(image: Image.Image) -> bytes:
+        output = BytesIO()
+        png_compatible = (
+            image if image.mode in {"1", "L", "LA", "P", "RGB", "RGBA"} else image.convert("RGB")
+        )
+        png_compatible.save(output, format="PNG")
+        return output.getvalue()
+
+    def _cleanup_split_children(self, children: list[DocumentUploadResponse]) -> None:
+        """Best-effort rollback so a failed response does not publish only one child."""
+        for child in children:
+            record = self.repository.get(child.document_id)
+            if record is None:
+                continue
+            try:
+                self.repository.delete(record)
+            except (OSError, ObjectStoreError):
+                continue
+
+    @staticmethod
+    def _unsupported_split_geometry() -> ApplicationError:
+        return ApplicationError(
+            ErrorCode.INVALID_FILE,
+            "The image layout could not be split into two side-by-side licences.",
+            400,
+        )
 
     def _validate_pdf(self, content: bytes) -> int:
         try:
@@ -386,6 +596,14 @@ class DocumentService:
     @staticmethod
     def not_found() -> ApplicationError:
         return ApplicationError(ErrorCode.DOCUMENT_NOT_FOUND, "The document was not found.", 404)
+
+    @staticmethod
+    def chat_unavailable() -> ApplicationError:
+        return ApplicationError(
+            ErrorCode.CHAT_HISTORY_UNAVAILABLE,
+            "Saved chat history is temporarily unavailable.",
+            503,
+        )
 
     @staticmethod
     def _spoofed_file() -> ApplicationError:

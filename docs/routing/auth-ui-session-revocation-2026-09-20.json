@@ -1,0 +1,50 @@
+{
+  "work_unit": "Browser sign-out wired to durable JWT session revocation",
+  "assessment": {
+    "scores": {
+      "uncertainty": 1,
+      "scope": 1,
+      "reasoning": 2,
+      "verification": 1
+    },
+    "score": 5,
+    "risk": "high",
+    "recommended_tier": "strong",
+    "reason": "A browser sign-out must not claim success until the server has revoked the specific durable session."
+  },
+  "execution": {
+    "dispatch": {
+      "model": "inherited session model (the follow-up tool does not expose the exact worker model)",
+      "effort": "inherited",
+      "tier": "strong",
+      "attempt": 1,
+      "escalations": 0,
+      "owned_files": [
+        "frontend/src/lib/auth-client.ts",
+        "frontend/src/components/auth-gate.tsx"
+      ]
+    },
+    "coordinator_review": "Inspected the client-to-route contract and preserved pre-existing dirty frontend work outside the logout wiring."
+  },
+  "outcome": {
+    "status": "accepted",
+    "behavior": [
+      "The client sends the in-memory bearer token to POST /api/auth/logout and accepts only HTTP 204.",
+      "A confirmed logout, or a 401 from an already-expired/revoked session, clears the browser session.",
+      "Network and server failures retain the browser session and show a generic retryable error.",
+      "Duplicate sign-out requests are disabled while a request is pending."
+    ],
+    "validation": [
+      "Coordinator inspection of the FastAPI logout route and durable AuthService session-revocation contract.",
+      "Frontend ESLint passed.",
+      "Frontend Prettier check passed.",
+      "Next route type generation and TypeScript passed.",
+      "Production Next.js build passed.",
+      "git diff --check passed."
+    ],
+    "limitations": [
+      "The local bootstrap account is assessment-only; it is not public registration or account recovery.",
+      "A live sign-in/sign-out browser check requires locally configured bootstrap credentials and hybrid or jwt mode."
+    ]
+  }
+}

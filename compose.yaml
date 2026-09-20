@@ -1,7 +1,7 @@
 name: licenceiq-local
 
-# Local-only infrastructure for the durable profile. The application itself remains
-# host-run during Phase 10A, so the existing fictional-sample demo needs no Docker.
+# Local-only complete LicenceIQ stack. Original bytes stay private in MinIO while
+# PostgreSQL/pgvector owns the document record, vectors, users, and sessions.
 services:
   postgres:
     image: pgvector/pgvector:0.8.6-pg16-bookworm
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: quay.io/minio/minio
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${LICENCEIQ_MINIO_ROOT_USER:?set LICENCEIQ_MINIO_ROOT_USER in infra/.env}
@@ -32,7 +32,85 @@ services:
       - "127.0.0.1:${LICENCEIQ_MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - licenceiq-minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9000/minio/health/live > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     restart: unless-stopped
+
+  minio-bootstrap:
+    image: quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${LICENCEIQ_MINIO_ROOT_USER:?set LICENCEIQ_MINIO_ROOT_USER in infra/.env}
+      MINIO_ROOT_PASSWORD: ${LICENCEIQ_MINIO_ROOT_PASSWORD:?set LICENCEIQ_MINIO_ROOT_PASSWORD in infra/.env}
+      MINIO_APP_ACCESS_KEY: ${LICENCEIQ_MINIO_APP_ACCESS_KEY:?set LICENCEIQ_MINIO_APP_ACCESS_KEY in infra/.env}
+      MINIO_APP_SECRET_KEY: ${LICENCEIQ_MINIO_APP_SECRET_KEY:?set LICENCEIQ_MINIO_APP_SECRET_KEY in infra/.env}
+    volumes:
+      - ./docker/minio/licenceiq-app-policy.json:/policies/licenceiq-app-policy.json:ro
+      - ./docker/minio/bootstrap.sh:/bootstrap/bootstrap.sh:ro
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap.sh"]
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./.env
+    environment:
+      LICENCEIQ_ENVIRONMENT: development
+      LICENCEIQ_DOCUMENT_STORAGE_BACKEND: minio
+      LICENCEIQ_DOCUMENT_METADATA_BACKEND: postgres
+      LICENCEIQ_DATABASE_URL: postgresql+psycopg://${LICENCEIQ_POSTGRES_USER}:${LICENCEIQ_POSTGRES_PASSWORD}@postgres:5432/${LICENCEIQ_POSTGRES_DATABASE}
+      LICENCEIQ_MINIO_ENDPOINT: minio:9000
+      LICENCEIQ_MINIO_ACCESS_KEY: ${LICENCEIQ_MINIO_APP_ACCESS_KEY}
+      LICENCEIQ_MINIO_SECRET_KEY: ${LICENCEIQ_MINIO_APP_SECRET_KEY}
+      LICENCEIQ_MINIO_BUCKET: licenceiq-private
+      LICENCEIQ_MINIO_PREFIX: documents
+      LICENCEIQ_MINIO_SECURE: "false"
+      LICENCEIQ_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 25s
+    restart: "no"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8000}
+        # Keep browser access behavior aligned with the API. This is public build
+        # configuration, not a credential; derive it from the server settings.
+        NEXT_PUBLIC_AUTH_MODE: ${LICENCEIQ_AUTH_MODE:-capability}
+        NEXT_PUBLIC_SELF_REGISTRATION_ENABLED: ${LICENCEIQ_SELF_REGISTRATION_ENABLED:-false}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: "no"
 
 volumes:
   licenceiq-postgres:

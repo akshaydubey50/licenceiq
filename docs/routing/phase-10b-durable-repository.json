@@ -1,0 +1,56 @@
+{
+  "title": "Phase 10B durable PostgreSQL metadata, embeddings, and session persistence",
+  "assessment": {
+    "scores": {
+      "uncertainty": 2,
+      "scope": 2,
+      "reasoning": 2,
+      "verification": 2
+    },
+    "risk": "high",
+    "recommendation": {
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "reason": "Private document access, relational lifecycle, pgvector integrity, and revocable sessions cross security and data-integrity boundaries."
+    },
+    "attempts_used": 2,
+    "escalate": false,
+    "escalations_used": 0
+  },
+  "execution": {
+    "status": "complete",
+    "workers": [
+      {
+        "model": "gpt-5.6-sol",
+        "effort": "high",
+        "scope": "PostgreSQL document repository, follow-up migration, normalized reading/evidence/vector writes, and focused offline tests.",
+        "owned_files": [
+          "backend/app/persistence/models.py",
+          "backend/migrations/versions/20260920_0002_document_record_contract.py",
+          "backend/app/repositories/postgres_documents.py",
+          "backend/tests/test_postgres_documents.py"
+        ],
+        "attempt": 1,
+        "outcome": "Accepted after coordinator review and a live PostgreSQL correction for SQL NULL versus JSON null evidence geometry."
+      }
+    ],
+    "coordinator_scope": "Settings and application composition, durable JWT session store and logout route, integration tests, documentation, migration activation, and live isolated smoke verification."
+  },
+  "validation": {
+    "passed": [
+      "Focused offline pytest coverage for PostgreSQL records, sessions, configuration, authentication, and migration contracts.",
+      "Full backend pytest suite.",
+      "Ruff and strict mypy for the backend.",
+      "Live Alembic upgrade 20260920_0001 to 20260920_0002 against local PostgreSQL/pgvector.",
+      "Live provider-free upload, OCR read, restart, pgvector persistence, MinIO content-only verification, session revocation, and cascading delete against local MinIO/PostgreSQL."
+    ],
+    "not_run": [
+      "A PostgreSQL-native lexical/vector ranking query: existing bounded same-document ranking remains in the application service while vectors are now durable.",
+      "A live OpenAI provider request: the infrastructure smoke deliberately used a deterministic OCR substitute and no real licence."
+    ]
+  },
+  "limitations": [
+    "Extraction and review snapshots are durable in documents.record_json; writing their separate normalized history tables is deferred.",
+    "The local environment remains a single-machine demonstration, not a production backup, malware-scanning, rate-limited, or multi-worker deployment."
+  ]
+}

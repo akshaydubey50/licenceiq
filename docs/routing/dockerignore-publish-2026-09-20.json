@@ -1,0 +1,34 @@
+{
+  "work_unit": "Docker build-context hardening and authorized repository publication",
+  "assessment": {
+    "uncertainty": 1,
+    "scope": 0,
+    "reasoning": 0,
+    "verification": 1,
+    "total": 2,
+    "tier": "fast"
+  },
+  "evidence": [
+    "Both service-specific Dockerfiles define their required inputs explicitly.",
+    "Existing ignore rules already excluded credentials, dependency folders, test sources, and local caches.",
+    "The remaining additions exclude non-runtime repository and local-development files from each build context."
+  ],
+  "dispatch": {
+    "mode": "coordinator direct execution",
+    "reason": "The isolated, low-risk ignore-file update does not benefit from delegation."
+  },
+  "acceptance_checks": [
+    "Docker Compose configuration validates.",
+    "Both Docker images rebuild successfully.",
+    "Focused backend and frontend checks pass before commit."
+  ],
+  "outcome": {
+    "docker_contexts": {
+      "backend": "7.32 kB",
+      "frontend": "1.50 kB"
+    },
+    "docker_build": "passed",
+    "backend_checks": "passed: pytest, Ruff lint, Ruff format check, mypy",
+    "frontend_checks": "passed: lint, typecheck, Prettier format check, production build"
+  }
+}

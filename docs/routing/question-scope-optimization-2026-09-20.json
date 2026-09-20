@@ -1,0 +1,32 @@
+{
+  "work_unit": "Two-level scope guardrail for grounded document Q&A",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {"uncertainty": 1, "scope": 2, "reasoning": 2, "verification": 2},
+    "total": 7,
+    "risk": "high",
+    "recommendation": {"tier": "strong", "model": "gpt-5.6-sol", "effort": "high"}
+  },
+  "dispatch": [
+    {
+      "scope": "Classify licence-related versus clearly unrelated questions and add regressions",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "Worker was interrupted before delivery; the coordinator completed and verified the accepted implementation."
+    }
+  ],
+  "implementation": {
+    "related_questions": "Questions about a licence, its holder, residence, work or occupation remain in the grounded direct-answer and retrieval flow. Missing evidence returns the fixed unavailable answer.",
+    "unrelated_questions": "Clearly unrelated topics return the fixed LicenceIQ scope guidance before embeddings, retrieval, or answer generation.",
+    "ambiguity_rule": "A licence signal takes precedence over an unrelated keyword, so mixed questions remain grounded instead of being incorrectly dismissed."
+  },
+  "verification": {
+    "focused_tests": "7 guardrail cases passed, including unsupported occupation, mixed licence-plus-weather, and unrelated-topic cases.",
+    "static_checks": "Ruff, formatter check, and mypy passed for the changed backend files.",
+    "runtime": "Docker Compose rebuilt the backend and frontend. Both containers are healthy; http://127.0.0.1:8000/health and http://127.0.0.1:3000/ returned HTTP 200."
+  },
+  "attempts_used": 1,
+  "escalations_used": 0,
+  "status": "complete"
+}

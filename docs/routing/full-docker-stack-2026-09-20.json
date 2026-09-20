@@ -1,0 +1,59 @@
+{
+  "work_unit": "Containerize the complete local LicenceIQ application stack",
+  "date": "2026-09-20",
+  "assessment": {
+    "scores": {
+      "uncertainty": 2,
+      "scope": 2,
+      "reasoning": 1,
+      "verification": 2
+    },
+    "total": 7,
+    "risk": "high",
+    "recommendation": {
+      "tier": "strong",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "helper_result": "candidate"
+    }
+  },
+  "dispatch": [
+    {
+      "scope": "Independent Compose security and restart-path review",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "attempt": 1,
+      "outcome": "review feedback integrated before final live validation"
+    }
+  ],
+  "implementation": {
+    "services": "Compose starts Next.js, FastAPI, PostgreSQL with pgvector, MinIO, and an idempotent MinIO bootstrap job.",
+    "persistence": "Named PostgreSQL and MinIO volumes retain metadata, vectors, sessions, and original document bytes across container stops.",
+    "storage_security": "The bootstrap account creates the private bucket and provisions a separate application account. The API account can access only documents/content objects in that bucket; MinIO root credentials never reach the API or frontend container.",
+    "runtime_safety": "PostgreSQL migration runs before the document-free OpenAI preflight. The API does not accept uploads if the configured model is unavailable.",
+    "image_security": "MinIO, Python, and Node images are pinned to immutable digests. Frontend and API run as the non-root licenceiq user. Docker build contexts exclude environment files and dependency caches.",
+    "operations": "Use docker compose up -d --build --wait for initial or changed configuration. docker compose start is verified for unchanged stopped containers."
+  },
+  "validation": {
+    "passed": [
+      "docker compose config --quiet passed with both ignored environment files.",
+      "The backend image installed its locked Python dependencies and the frontend image completed the Next.js production build.",
+      "docker compose up -d --wait reported healthy PostgreSQL, MinIO, backend, and frontend services; the one-time bootstrap exited successfully.",
+      "The API health endpoint and frontend root both returned HTTP 200.",
+      "Alembic reported migration 20260920_0004 as the Docker database head.",
+      "A fictional licence PNG uploaded to Docker-backed MinIO, downloaded through the protected API with its temporary guest capability, and was deleted successfully.",
+      "A separate fictional licence completed the Docker OCR read path for one page and was deleted after verification.",
+      "docker compose stop followed by docker compose start restored the unchanged stack successfully.",
+      "Both application containers reported uid and gid 10001 instead of root.",
+      "git diff --check passed without whitespace errors."
+    ],
+    "notes": [
+      "The first bootstrap attempt exposed Compose command-tokenization on a multiline shell command. It was replaced with a mounted, LF-enforced bootstrap script and retested.",
+      "Existing host frontend and API processes were verified by their LicenceIQ command paths before being stopped to free ports 3000 and 8000 for Docker.",
+      "Docker Desktop restarted its Windows engine connector during the image build. Stale Compose containers and the network were removed with down --remove-orphans, never with volume removal, before the final clean start and restart validation."
+    ]
+  },
+  "attempts_used": 3,
+  "escalations_used": 0,
+  "status": "complete"
+}

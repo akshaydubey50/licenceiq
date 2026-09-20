@@ -1,0 +1,18 @@
+{
+  "scores": {
+    "uncertainty": 1,
+    "scope": 1,
+    "reasoning": 1,
+    "verification": 2
+  },
+  "evidence": {
+    "uncertainty": "The OCR error envelope intentionally hides the upstream reason; local key and model configuration required a provider probe.",
+    "scope": "The work isolates runtime process access from the existing OCR adapter and upload/read API path.",
+    "reasoning": "The provider response must be distinguished from a stale or network-restricted backend process without exposing document text or credentials.",
+    "verification": "The fix needs server health, a document-free provider probe, and a live fictional-sample upload/read/delete check."
+  },
+  "risk": "high",
+  "attempts_used": 0,
+  "escalate": false,
+  "escalations_used": 0
+}
