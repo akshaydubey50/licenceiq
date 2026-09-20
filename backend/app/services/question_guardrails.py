@@ -100,7 +100,7 @@ class _RailsEngine(Protocol):
 
 
 class DisabledQuestionGuardrail:
-    """Preserve the existing application behavior when rails are not enabled."""
+    """Permit an explicit local opt-out when diagnosing or comparing behaviour."""
 
     def check_input(self, question: str, *, timeout_seconds: float) -> None:
         del question, timeout_seconds
@@ -162,8 +162,14 @@ class NeMoQuestionGuardrail:
                 message="Configuring input/output rails in config.yml is deprecated.*",
                 category=FutureWarning,
             )
+            warnings.filterwarnings(
+                "ignore",
+                message="Use 'nim_base_url' instead.*",
+                category=DeprecationWarning,
+                module="nemoguardrails\\.library\\.jailbreak_detection\\.rail_config",
+            )
             config = RailsConfig.from_content(colang_content=_COLANG, yaml_content=_CONFIG)
-        rails = LLMRails(config)
+            rails = LLMRails(config)
         rails.register_action(_input_guard_action)
         rails.register_action(_output_guard_action)
         return cast(_RailsEngine, rails)
@@ -220,7 +226,7 @@ class NeMoQuestionGuardrail:
 
 
 def build_question_guardrail(settings: Settings) -> QuestionGuardrail:
-    """Build NeMo only when explicitly enabled; the default path remains dependency-free."""
+    """Build active NeMo rails unless an explicit local opt-out is configured."""
     if not settings.question_guardrails_enabled:
         return DisabledQuestionGuardrail()
     return NeMoQuestionGuardrail(settings)

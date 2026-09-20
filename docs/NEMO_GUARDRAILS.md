@@ -1,13 +1,15 @@
 # NeMo Guardrails for document Q&A
 
-LicenceIQ can apply local NeMo Guardrails before a question reaches retrieval and before an answered result is returned. The default is disabled so the original assessment demo keeps its existing behaviour.
+LicenceIQ applies local NeMo Guardrails before a question reaches retrieval and before an answered result is returned. They are enabled by default for the assessment application.
 
-Enable it in the ignored root `.env` file:
+The ignored root `.env` file can explicitly preserve that setting:
 
 ```dotenv
 LICENCEIQ_QUESTION_GUARDRAILS_ENABLED=true
 LICENCEIQ_QUESTION_GUARDRAIL_TIMEOUT_SECONDS=2
 ```
+
+Set `LICENCEIQ_QUESTION_GUARDRAILS_ENABLED=false` only for local troubleshooting or a controlled comparison.
 
 ## What the rails do
 

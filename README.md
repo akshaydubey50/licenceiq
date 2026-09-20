@@ -116,7 +116,7 @@ Only `OPENAI_API_KEY` is required for the complete AI workflow. The local defaul
 | `NEXT_PUBLIC_API_BASE_URL` | No | Browser API address; defaults to `http://127.0.0.1:8000`. |
 | `NEXT_PUBLIC_AUTH_MODE` | No | `capability` for the ready-to-run local demo; `hybrid` for guest plus demo sign-in; `jwt` for a signed-in workspace. It must match the backend mode. |
 | `LICENCEIQ_AUTH_MODE` and `LICENCEIQ_DOCUMENT_STORAGE_BACKEND` | No | Backend switches for guest capability, JWT/hybrid access, and optional MinIO storage. |
-| `LICENCEIQ_QUESTION_GUARDRAILS_ENABLED` | No | Enables local NeMo input/output policy checks for Q&A. It is `false` by default. |
+| `LICENCEIQ_QUESTION_GUARDRAILS_ENABLED` | No | Enables local NeMo input/output policy checks for Q&A. It is `true` by default; set it to `false` only for local troubleshooting. |
 
 All optional limits, model settings, JWT settings, and MinIO settings are documented in [`.env.example`](.env.example). See the [private JWT/MinIO setup guide](docs/PHASE_9_LOCAL_SETUP.md) before enabling those optional modes. Never put secrets in `NEXT_PUBLIC_*` variables.
 

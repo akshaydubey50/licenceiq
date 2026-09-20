@@ -1,0 +1,43 @@
+{
+  "work_unit": "Enable verified NeMo Guardrails as LicenceIQ's normal Q&A configuration",
+  "assessment": {
+    "uncertainty": 0,
+    "scope": 1,
+    "reasoning": 1,
+    "verification": 1,
+    "total": 3,
+    "risk": "high",
+    "evidence": {
+      "uncertainty": "The user explicitly requested that the already-verified rails become the normal configuration.",
+      "scope": "The setting, example configuration, documentation, and default-path regression test change together.",
+      "reasoning": "The prior opt-in branch becomes an opt-out branch without changing the rail contract.",
+      "verification": "The normal configuration needs an injection regression and the complete backend checks."
+    }
+  },
+  "recommendation": {
+    "tier": "strong",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "reason": "The routing helper selected the supported strong pair because this is a high-impact security default."
+  },
+  "execution": {
+    "mode": "direct coordinator change",
+    "dispatch": null,
+    "attempt": 1,
+    "escalations": 0
+  },
+  "acceptance_checks": [
+    "Settings default is true",
+    "The default-path injection test returns QUESTION_BLOCKED",
+    "The complete backend suite and static checks pass"
+  ],
+  "outcome": {
+    "checks": [
+      "The complete default-enabled backend suite passed",
+      "50 focused question tests passed after narrowing a third-party deprecation filter",
+      "Ruff lint and formatting passed",
+      "strict mypy passed for 39 source files"
+    ],
+    "limitations": "The explicit false configuration remains available only for local troubleshooting or controlled comparison."
+  }
+}

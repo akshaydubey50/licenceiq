@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     question_embedding_timeout_seconds: float = Field(default=15, ge=1, le=120)
     question_embedding_max_blocks: int = Field(default=256, ge=1, le=2000)
     question_embedding_max_characters: int = Field(default=100_000, ge=1, le=200_000)
-    question_guardrails_enabled: bool = False
+    question_guardrails_enabled: bool = True
     question_guardrail_timeout_seconds: float = Field(default=2, ge=0.1, le=10)
     max_concurrent_questions: int = Field(default=4, ge=1, le=32)
 
