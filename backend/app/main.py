@@ -34,6 +34,7 @@ from app.repositories.documents import (
 from app.repositories.object_store import MinioObjectStore
 from app.services.documents import DocumentService
 from app.services.extraction import ExtractionService
+from app.services.question_guardrails import QuestionGuardrail, build_question_guardrail
 from app.services.questions import QuestionService
 from app.services.reading import ReadingService
 
@@ -46,6 +47,7 @@ def create_app(
     llm_provider: LLMProvider | None = None,
     answer_provider: AnswerProvider | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    question_guardrail: QuestionGuardrail | None = None,
 ) -> FastAPI:
     """Compose configuration, storage, cross-cutting handlers, and routes."""
     config = settings if settings is not None else get_settings()
@@ -72,6 +74,7 @@ def create_app(
         document_service,
         answer_provider if answer_provider is not None else OpenAIAnswerProvider(config),
         embedding_provider if embedding_provider is not None else OpenAIEmbeddingProvider(config),
+        question_guardrail if question_guardrail is not None else build_question_guardrail(config),
         now_provider,
     )
 

@@ -39,7 +39,7 @@ The local application supports one licence per upload. It intentionally refuses 
 | Frontend | Next.js App Router, React, TypeScript, Tailwind CSS |
 | Backend | Python, FastAPI, Pydantic, pydantic-settings, Uvicorn |
 | File processing | python-multipart, Pillow, pypdf, pypdfium2 |
-| AI | OpenAI Responses API with `gpt-4.1-mini` for vision OCR, extraction, and grounded answers; `text-embedding-3-small` for semantic retrieval |
+| AI | OpenAI Responses API with `gpt-4.1-mini` for vision OCR, extraction, and grounded answers; `text-embedding-3-small` for semantic retrieval; optional local NeMo Guardrails policy checks for Q&A |
 | Storage and access | Private filesystem storage for the local demo; optional MinIO/S3-compatible repository, guest document capabilities, and JWT ownership |
 | Quality checks | pytest, Ruff, mypy, ESLint, TypeScript, Prettier, Next.js production build |
 
@@ -116,6 +116,7 @@ Only `OPENAI_API_KEY` is required for the complete AI workflow. The local defaul
 | `NEXT_PUBLIC_API_BASE_URL` | No | Browser API address; defaults to `http://127.0.0.1:8000`. |
 | `NEXT_PUBLIC_AUTH_MODE` | No | `capability` for the ready-to-run local demo; `hybrid` for guest plus demo sign-in; `jwt` for a signed-in workspace. It must match the backend mode. |
 | `LICENCEIQ_AUTH_MODE` and `LICENCEIQ_DOCUMENT_STORAGE_BACKEND` | No | Backend switches for guest capability, JWT/hybrid access, and optional MinIO storage. |
+| `LICENCEIQ_QUESTION_GUARDRAILS_ENABLED` | No | Enables local NeMo input/output policy checks for Q&A. It is `false` by default. |
 
 All optional limits, model settings, JWT settings, and MinIO settings are documented in [`.env.example`](.env.example). See the [private JWT/MinIO setup guide](docs/PHASE_9_LOCAL_SETUP.md) before enabling those optional modes. Never put secrets in `NEXT_PUBLIC_*` variables.
 
@@ -145,6 +146,7 @@ Document -> parsing/OCR -> page text and evidence blocks
 3. Reviewer changes are saved beside, never inside, the original extraction.
 4. Known questions such as “What is the licence number?” use the validated extracted field directly and avoid an unnecessary LLM call.
 5. Broader questions use a bounded, private semantic-plus-lexical search over blocks from the active document only. A grounded answer must cite selected evidence; otherwise the application returns an unavailable response.
+6. Every provider answer is checked against the cited source terms before it can be returned. Optional NeMo input/output rails reject prompt-control attempts and prompt leakage; they receive only the question or final answer, not licence text or retrieved evidence.
 
 ## Key technical decisions
 
@@ -152,6 +154,7 @@ Document -> parsing/OCR -> page text and evidence blocks
 - **Keep providers behind adapters.** The application can replace the OCR, extraction, answer, or embeddings provider without changing API routes or review rules.
 - **Use strict structured output.** Extraction targets a defined licence schema before local evidence validation, which keeps the review form predictable even when a field is unavailable.
 - **Validate model output locally.** A JSON-shaped model response is not enough: each returned field and answer citation must resolve to stored evidence.
+- **Use policy rails as a separate boundary.** Optional NeMo Guardrails run locally around document Q&A, while deterministic evidence checks remain responsible for whether an answer is supported by the document.
 - **Preserve provenance.** A reviewer correction does not overwrite the source extraction or become evidence for later document Q&A.
 - **Bypass the LLM for known fields.** Direct answers are faster, less expensive, and deterministic when a validated extracted field already answers the question.
 - **Separate guest and signed-in credentials.** A guest capability is scoped to one temporary document; a JWT is scoped to one user subject. Hybrid mode rejects ambiguous requests and never lets an invalid JWT fall back to guest access.
@@ -193,6 +196,7 @@ Detailed evidence is available in the [phase reports](docs/), without adding the
 - Evidence navigation uses page and excerpt references. It cannot promise pixel-perfect OCR highlighting because the OCR provider supplies no reliable coordinates.
 - The local demo uses temporary private storage. Guest document capabilities and demo JWTs remain only in browser memory; the JWT mode has one bootstrap account rather than real account management.
 - MinIO support has not yet been exercised against a live server. The hybrid mode is for local demonstration and is intentionally rejected in production.
+- The optional NeMo policy rails use deterministic local rules for prompt-control and prompt-leakage patterns. They complement source grounding; they are not a replacement for broader content moderation or adversarial evaluation.
 - There is no public deployment. Local setup is provided, as allowed by the assessment brief.
 
 ## Production improvements

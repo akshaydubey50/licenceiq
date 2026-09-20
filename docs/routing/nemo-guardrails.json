@@ -1,0 +1,45 @@
+{
+  "work_unit": "Optional local NeMo Guardrails for document question and answer boundaries",
+  "assessment": {
+    "uncertainty": 2,
+    "scope": 2,
+    "reasoning": 2,
+    "verification": 2,
+    "total": 8,
+    "risk": "high: document privacy, prompt-injection handling, and answer integrity",
+    "evidence": [
+      "The Q&A path carries personal document data and invokes external AI providers.",
+      "The implementation needs an opt-in NeMo integration, bounded failure behaviour, and source-grounding preservation.",
+      "Existing direct lookup and retrieval paths require regression coverage."
+    ]
+  },
+  "recommendation": {
+    "tier": "strong",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  },
+  "dispatch": {
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "attempt": 1,
+    "escalations": 0,
+    "ownership": [
+      "backend/app/services/question_guardrails.py",
+      "backend/app/services/questions.py",
+      "backend/app/core/config.py",
+      "backend/app/main.py",
+      "backend/app/schemas/common.py",
+      "backend/tests/test_questions.py"
+    ]
+  },
+  "outcome": {
+    "implementation": "Optional local input/output NeMo rails, fail-closed errors, citation-term support validation, and relationship-name abstention.",
+    "checks": [
+      "240 backend tests passed",
+      "Ruff lint and formatting passed",
+      "strict mypy passed for 39 source files",
+      "git diff --check passed"
+    ],
+    "limitations": "The local rails are deterministic policy checks; they do not provide general-purpose moderation or semantic truth verification."
+  }
+}

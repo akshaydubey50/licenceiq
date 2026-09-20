@@ -35,6 +35,11 @@ from app.providers.embeddings import EmbeddingProvider, EmbeddingRequest, Embedd
 from app.repositories.documents import DocumentRepository, StoredDocumentRecord
 from app.schemas.common import ErrorCode
 from app.services.documents import DocumentCredential, DocumentService
+from app.services.question_guardrails import (
+    QuestionGuardrail,
+    QuestionGuardrailBlocked,
+    QuestionGuardrailFailure,
+)
 
 _WORD_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
 _STOP_WORDS = {
@@ -69,6 +74,34 @@ _STOP_WORDS = {
     "which",
     "who",
 }
+_ANSWER_FRAMING_WORDS = {
+    "authorised",
+    "authorized",
+    "document",
+    "drive",
+    "driving",
+    "holder",
+    "indicates",
+    "licence",
+    "license",
+    "listed",
+    "lists",
+    "person",
+    "says",
+    "shows",
+    "states",
+}
+_RELATIONSHIP_TERMS = {
+    "daughter",
+    "father",
+    "guardian",
+    "husband",
+    "mother",
+    "parent",
+    "son",
+    "spouse",
+    "wife",
+}
 
 
 class QuestionService:
@@ -81,6 +114,7 @@ class QuestionService:
         document_service: DocumentService,
         answer_provider: AnswerProvider,
         embedding_provider: EmbeddingProvider,
+        question_guardrail: QuestionGuardrail,
         now_provider: Callable[[], datetime] | None = None,
         monotonic_provider: Callable[[], float] | None = None,
     ) -> None:
@@ -89,6 +123,7 @@ class QuestionService:
         self.document_service = document_service
         self.answer_provider = answer_provider
         self.embedding_provider = embedding_provider
+        self.question_guardrail = question_guardrail
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
         self.monotonic_provider = monotonic_provider or time.monotonic
         self._active_guard = threading.Lock()
@@ -116,12 +151,14 @@ class QuestionService:
             reading = self._require_reading(snapshot)
             extraction = self._require_extraction(snapshot)
             deadline = self.monotonic_provider() + self.settings.question_timeout_seconds
+            self._guard_input(request.question, deadline)
 
             direct = self._direct_fields(request.question, extraction)
             if direct is not None:
                 result = self._direct_result(
                     snapshot.document_id, request.question, reading, direct
                 )
+                result = self._guard_output(result, deadline)
                 self._check_deadline(deadline)
                 self._ensure_current(snapshot, authorization)
                 return result
@@ -153,6 +190,7 @@ class QuestionService:
             result = self._provider_result(
                 snapshot.document_id, request.question, selected, candidate
             )
+            result = self._guard_output(result, deadline)
             self._ensure_current(snapshot, authorization)
             return result
         finally:
@@ -187,8 +225,11 @@ class QuestionService:
         normalized = QuestionService._normalize_phrase(question)
         licence = extraction.licence
         matches: list[tuple[ExtractedField, ...]] = []
+        asks_relationship_name = QuestionService._contains_phrase(normalized, "name") and any(
+            QuestionService._contains_phrase(normalized, term) for term in _RELATIONSHIP_TERMS
+        )
         patterns: tuple[tuple[tuple[str, ...], tuple[ExtractedField, ...]], ...] = (
-            (("full name", "holder name", "licence holder", "name"), (licence.full_name,)),
+            (("full name", "holder name", "licence holder"), (licence.full_name,)),
             (
                 ("licence number", "license number", "dl number", "dl no"),
                 (licence.licence_number,),
@@ -224,12 +265,25 @@ class QuestionService:
         for phrases, fields in patterns:
             if any(QuestionService._contains_phrase(normalized, phrase) for phrase in phrases):
                 matches.append(fields)
+        has_explicit_holder_name = any(
+            QuestionService._contains_phrase(normalized, phrase)
+            for phrase in ("full name", "holder name", "licence holder")
+        )
+        if (
+            QuestionService._contains_phrase(normalized, "name")
+            and not asks_relationship_name
+            and not has_explicit_holder_name
+        ):
+            matches.append((licence.full_name,))
 
         for name, field in licence.other_information.items():
             phrase = QuestionService._normalize_phrase(name)
             if phrase and QuestionService._contains_phrase(normalized, phrase):
                 matches.append((field,))
 
+        if asks_relationship_name and not matches:
+            # Never reinterpret a missing relationship name as the holder's name.
+            return ()
         return matches[0] if len(matches) == 1 else None
 
     def _direct_result(
@@ -492,6 +546,8 @@ class QuestionService:
         selected_by_id = {block.block_id: block for block in selected}
         if any(block_id not in selected_by_id for block_id in candidate.block_ids):
             raise self._provider_error()
+        if not self._answer_is_supported(candidate.answer, candidate.block_ids, selected_by_id):
+            return self._unavailable(document_id, question)
         citations = tuple(
             QuestionCitation(
                 block_id=block_id,
@@ -507,6 +563,49 @@ class QuestionService:
             citations=citations,
             created_at=self.now_provider(),
         )
+
+    @staticmethod
+    def _answer_is_supported(
+        answer: str,
+        block_ids: tuple[str, ...],
+        selected_by_id: dict[str, QuestionBlock],
+    ) -> bool:
+        """Require every meaningful answer term to occur in its cited source blocks."""
+        cited_text = " ".join(selected_by_id[block_id].text for block_id in block_ids)
+        normalized_answer = QuestionService._normalize_phrase(answer)
+        normalized_source = QuestionService._normalize_phrase(cited_text)
+        if normalized_answer and normalized_answer in normalized_source:
+            return True
+        answer_terms = QuestionService._terms(answer) - _STOP_WORDS - _ANSWER_FRAMING_WORDS
+        source_terms = QuestionService._terms(cited_text)
+        return bool(answer_terms) and answer_terms.issubset(source_terms)
+
+    def _guard_input(self, question: str, deadline: float) -> None:
+        try:
+            self.question_guardrail.check_input(
+                question,
+                timeout_seconds=self._remaining(deadline),
+            )
+        except QuestionGuardrailBlocked:
+            raise self._blocked() from None
+        except QuestionGuardrailFailure:
+            raise self._guard_error() from None
+        self._check_deadline(deadline)
+
+    def _guard_output(self, result: QuestionResult, deadline: float) -> QuestionResult:
+        if result.status is QuestionStatus.UNAVAILABLE:
+            return result
+        try:
+            self.question_guardrail.check_output(
+                result.answer,
+                timeout_seconds=self._remaining(deadline),
+            )
+        except QuestionGuardrailBlocked:
+            return self._unavailable(result.document_id, result.question)
+        except QuestionGuardrailFailure:
+            raise self._guard_error() from None
+        self._check_deadline(deadline)
+        return result
 
     def _ensure_current(
         self,
@@ -613,6 +712,22 @@ class QuestionService:
             ErrorCode.QUESTION_PROVIDER_ERROR,
             "The document question service could not answer this question. Please try again.",
             502,
+        )
+
+    @staticmethod
+    def _blocked() -> ApplicationError:
+        return ApplicationError(
+            ErrorCode.QUESTION_BLOCKED,
+            "This question cannot be processed by the document assistant.",
+            400,
+        )
+
+    @staticmethod
+    def _guard_error() -> ApplicationError:
+        return ApplicationError(
+            ErrorCode.QUESTION_GUARD_ERROR,
+            "Document question safeguards are temporarily unavailable.",
+            503,
         )
 
     @staticmethod
